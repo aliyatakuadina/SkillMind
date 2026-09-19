@@ -1,78 +1,89 @@
 import { useState } from 'react'
 import { Link, NavLink, useNavigate } from 'react-router-dom'
 import type { UserRole } from '../types'
+import { t } from '../i18n'
 
 interface HeaderProps {
   currentRole: UserRole
-  onRoleChange: (role: UserRole) => void
+  userEmail: string
+  onLogout: () => Promise<void>
 }
 
-export function Header({ currentRole, onRoleChange }: HeaderProps) {
+export function Header({ currentRole, userEmail, onLogout }: HeaderProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const navigate = useNavigate()
+  const isAuthenticated = Boolean(userEmail)
 
-  const handleRoleSelect = (role: UserRole) => {
-    onRoleChange(role)
-    if (role === 'teacher') navigate('/teacher/courses')
-    else if (role === 'admin') navigate('/admin/users')
-    else navigate('/dashboard')
+  const handleLogout = async () => {
     setMobileMenuOpen(false)
+    await onLogout()
+    navigate('/login')
   }
+
+  const roleLabel =
+    currentRole === 'teacher' ? t('role.teacher') :
+    currentRole === 'admin' ? t('role.admin') :
+    t('role.student')
+
+  const roleIcon =
+    currentRole === 'admin' ? '⚙' :
+    currentRole === 'teacher' ? '✏' :
+    '🎓'
 
   return (
     <header className="site-header">
       <div className="header-container">
-        <Link className="brand" to="/" aria-label="SkillMind — на главную" onClick={() => setMobileMenuOpen(false)}>
+        <Link className="brand" to="/" aria-label={t('brand.homeLabel')} onClick={() => setMobileMenuOpen(false)}>
           <span className="brand-mark">S</span>
           <span className="brand-text">SkillMind</span>
         </Link>
 
         {/* Desktop Navigation */}
-        <nav className="main-nav" aria-label="Основная навигация">
+        <nav className="main-nav" aria-label={t('nav.mainLabel')}>
           <NavLink to="/courses" className={({ isActive }) => (isActive ? 'active' : '')}>
-            Каталог
+            {t('nav.catalog')}
           </NavLink>
-          <NavLink to="/dashboard" className={({ isActive }) => (isActive ? 'active' : '')}>
-            Моё обучение
-          </NavLink>
-          <NavLink to="/teacher/courses" className={({ isActive }) => (isActive ? 'active' : '')}>
-            Преподавателям
-          </NavLink>
-          <NavLink to="/admin/users" className={({ isActive }) => (isActive ? 'active' : '')}>
-            Управление
-          </NavLink>
+          {isAuthenticated && <NavLink to="/dashboard" className={({ isActive }) => (isActive ? 'active' : '')}>
+            {t('nav.learning')}
+          </NavLink>}
+          {isAuthenticated && (currentRole === 'teacher' || currentRole === 'admin') && (
+            <NavLink to="/teacher/courses" className={({ isActive }) => (isActive ? 'active' : '')}>
+              {t('nav.courses')}
+            </NavLink>
+          )}
+          {isAuthenticated && currentRole === 'admin' && (
+            <NavLink to="/admin/users" className={({ isActive }) => (isActive ? 'active' : '')}>
+              {t('nav.management')}
+            </NavLink>
+          )}
         </nav>
 
         {/* Header Right Actions */}
         <div className="header-actions">
-          {/* Role switcher for prototype exploration */}
-          <div className="role-switcher" title="Переключить режим роли для тестирования интерфейса">
-            <span className="role-switcher-label">Режим:</span>
-            <select
-              value={currentRole}
-              onChange={(e) => handleRoleSelect(e.target.value as UserRole)}
-              className="role-select"
-              aria-label="Переключить роль пользователя"
-            >
-              <option value="student">Студент</option>
-              <option value="teacher">Преподаватель</option>
-              <option value="admin">Администратор</option>
-            </select>
+          {/* User info pill */}
+          {isAuthenticated ? <><div className="user-info-pill">
+            <span className="user-avatar-dot">{roleIcon}</span>
+            <span className="user-role-label" title={userEmail}>{roleLabel}</span>
           </div>
 
-          <Link className="link-button" to="/login">
-            Войти
-          </Link>
-          <Link className="button button-small" to="/register">
-            Регистрация
-          </Link>
+          <button
+            type="button"
+            className="button button-small button-muted"
+            onClick={handleLogout}
+          >
+            {t('auth.logout')}
+          </button>
+          </> : <div className="guest-auth-actions">
+            <Link className="button button-small button-muted" to="/login">{t('auth.loginLink')}</Link>
+            <Link className="button button-small" to="/register">{t('auth.register')}</Link>
+          </div>}
 
           {/* Mobile hamburger button */}
           <button
             type="button"
             className={`mobile-menu-btn ${mobileMenuOpen ? 'open' : ''}`}
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            aria-label={mobileMenuOpen ? 'Закрыть меню' : 'Открыть меню навигации'}
+            aria-label={mobileMenuOpen ? t('nav.closeMenu') : t('nav.openMenu')}
             aria-expanded={mobileMenuOpen}
           >
             <span />
@@ -87,68 +98,55 @@ export function Header({ currentRole, onRoleChange }: HeaderProps) {
         <div className="mobile-nav-overlay" onClick={() => setMobileMenuOpen(false)}>
           <div className="mobile-nav-panel" onClick={(e) => e.stopPropagation()}>
             <div className="mobile-nav-header">
-              <span className="mobile-nav-title">Меню</span>
+              <span className="mobile-nav-title">{t('nav.menu')}</span>
               <button
                 type="button"
                 className="close-btn"
                 onClick={() => setMobileMenuOpen(false)}
-                aria-label="Закрыть"
+                aria-label={t('nav.close')}
               >
                 ✕
               </button>
             </div>
             <nav className="mobile-nav-links">
               <NavLink to="/courses" onClick={() => setMobileMenuOpen(false)}>
-                📚 Каталог курсов
+                📚 {t('footer.catalog')}
               </NavLink>
-              <NavLink to="/dashboard" onClick={() => setMobileMenuOpen(false)}>
-                🎓 Моё обучение
-              </NavLink>
-              <NavLink to="/teacher/courses" onClick={() => setMobileMenuOpen(false)}>
-                ✏️ Кабинет преподавателя
-              </NavLink>
-              <NavLink to="/teacher/submissions" onClick={() => setMobileMenuOpen(false)}>
-                📝 Проверка заданий
-              </NavLink>
-              <NavLink to="/admin/users" onClick={() => setMobileMenuOpen(false)}>
-                ⚙️ Панель администратора
-              </NavLink>
-              <NavLink to="/certificates/cert-ux-2026-982" onClick={() => setMobileMenuOpen(false)}>
-                🏆 Пример сертификата
+              {isAuthenticated && <NavLink to="/dashboard" onClick={() => setMobileMenuOpen(false)}>
+                🎓 {t('nav.learning')}
+              </NavLink>}
+              {isAuthenticated && <NavLink to="/profile" onClick={() => setMobileMenuOpen(false)}>
+                👤 {t('nav.profile')}
+              </NavLink>}
+              {isAuthenticated && (currentRole === 'teacher' || currentRole === 'admin') && (
+                <NavLink to="/teacher/courses" onClick={() => setMobileMenuOpen(false)}>
+                  ✏️ {t('nav.teacher')}
+                </NavLink>
+              )}
+              {isAuthenticated && (currentRole === 'teacher' || currentRole === 'admin') && (
+                <NavLink to="/teacher/submissions" onClick={() => setMobileMenuOpen(false)}>
+                  📝 {t('nav.submissions')}
+                </NavLink>
+              )}
+              {isAuthenticated && currentRole === 'admin' && (
+                <NavLink to="/admin/users" onClick={() => setMobileMenuOpen(false)}>
+                  ⚙️ {t('nav.admin')}
+                </NavLink>
+              )}
+              <NavLink to="/verify" onClick={() => setMobileMenuOpen(false)}>
+                🏆 {t('nav.certificateVerify')}
               </NavLink>
             </nav>
             <div className="mobile-nav-footer">
-              <p className="mobile-role-text">Демо-роль:</p>
-              <div className="mobile-role-buttons">
-                <button
-                  type="button"
-                  className={currentRole === 'student' ? 'active' : ''}
-                  onClick={() => handleRoleSelect('student')}
-                >
-                  Студент
-                </button>
-                <button
-                  type="button"
-                  className={currentRole === 'teacher' ? 'active' : ''}
-                  onClick={() => handleRoleSelect('teacher')}
-                >
-                  Преподаватель
-                </button>
-                <button
-                  type="button"
-                  className={currentRole === 'admin' ? 'active' : ''}
-                  onClick={() => handleRoleSelect('admin')}
-                >
-                  Админ
-                </button>
-              </div>
               <div className="mobile-auth-links">
-                <Link to="/login" className="button button-muted" onClick={() => setMobileMenuOpen(false)}>
-                  Войти
-                </Link>
-                <Link to="/register" className="button" onClick={() => setMobileMenuOpen(false)}>
-                  Регистрация
-                </Link>
+                {isAuthenticated ? <button
+                  type="button"
+                  className="button button-muted"
+                  style={{ width: '100%' }}
+                  onClick={handleLogout}
+                >
+                  {t('auth.logoutAccount')}
+                </button> : <><Link className="button button-muted" to="/login" onClick={() => setMobileMenuOpen(false)}>{t('auth.loginLink')}</Link><Link className="button" to="/register" onClick={() => setMobileMenuOpen(false)}>{t('auth.register')}</Link></>}
               </div>
             </div>
           </div>

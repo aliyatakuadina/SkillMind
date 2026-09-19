@@ -1,320 +1,130 @@
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { mockCourses } from '../data/mockData'
-import type { Lesson } from '../types'
+import {
+  getCourseAssetUrl,
+  getLearningCourse,
+  logLearningEvent,
+  setLessonCompleted,
+  issueCertificateIfEligible,
+  type LearningCourse,
+} from '../lib/learningRepository'
+import { QuizPanel } from '../components/QuizPanel'
+import { AssignmentPanel } from '../components/AssignmentPanel'
+import { t } from '../i18n'
 
 export function LearningPage() {
   const { courseId, lessonId } = useParams<{ courseId: string; lessonId: string }>()
   const navigate = useNavigate()
+  const [course, setCourse] = useState<LearningCourse | null>(null)
+  const [completedLessonIds, setCompletedLessonIds] = useState<Set<string>>(new Set())
+  const [resolvedResource, setResolvedResource] = useState({ source: '', url: '' })
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [savingProgress, setSavingProgress] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-  const course = mockCourses.find((item) => item.id === courseId) ?? mockCourses[0]
+  useEffect(() => {
+    if (!courseId) return
+    let active = true
+    void getLearningCourse(courseId)
+      .then((data) => {
+        if (!active) return
+        setCourse(data)
+        setCompletedLessonIds(new Set(data.completedLessonIds))
+      })
+      .catch((caught: Error) => { if (active) setError(caught.message) })
+      .finally(() => { if (active) setLoading(false) })
+    return () => { active = false }
+  }, [courseId])
 
-  // Flatten lessons for navigation
-  const allLessons: { lesson: Lesson; moduleTitle: string }[] = []
-  course.modules.forEach((mod) => {
-    mod.lessons.forEach((l) => {
-      allLessons.push({ lesson: l, moduleTitle: mod.title })
-    })
-  })
-
-  // Find active lesson index
+  const allLessons = useMemo(() => course?.modules.flatMap((module) => module.lessons.map((lesson) => ({ lesson, moduleTitle: module.title }))) ?? [], [course])
   const currentIndex = allLessons.findIndex((item) => item.lesson.id === lessonId)
   const safeIndex = currentIndex >= 0 ? currentIndex : 0
   const activeItem = allLessons[safeIndex]
-  const activeLesson = activeItem?.lesson ?? course.modules[0].lessons[0]
-  const currentModuleTitle = activeItem?.moduleTitle ?? course.modules[0].title
+  const activeLesson = activeItem?.lesson
 
-  // Local state for completed lessons tracking
-  const [completedLessonIds, setCompletedLessonIds] = useState<Set<string>>(
-    new Set(allLessons.filter((i) => i.lesson.isCompleted).map((i) => i.lesson.id))
-  )
+  useEffect(() => {
+    if (!courseId || !activeLesson) return
+    void logLearningEvent(courseId, activeLesson.id, 'lesson_opened').catch(() => undefined)
+    const path = activeLesson.videoUrl
+    if (!path) return
+    let active = true
+    void getCourseAssetUrl(path)
+      .then((url) => { if (active) setResolvedResource({ source: path, url }) })
+      .catch((caught: Error) => { if (active) setError(caught.message) })
+    return () => { active = false }
+  }, [activeLesson, courseId])
 
-  // Mobile drawer state for curriculum
-  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
-
-  // Interactive state for quiz & homework
-  const [quizSelectedOption, setQuizSelectedOption] = useState<number | null>(null)
-  const [quizSubmitted, setQuizSubmitted] = useState(false)
-  const [homeworkSubmitted, setHomeworkSubmitted] = useState(false)
-
-  const isCurrentCompleted = completedLessonIds.has(activeLesson.id)
-
-  const toggleCompleted = () => {
-    setCompletedLessonIds((prev) => {
-      const next = new Set(prev)
-      if (next.has(activeLesson.id)) {
-        next.delete(activeLesson.id)
-      } else {
-        next.add(activeLesson.id)
-      }
-      return next
-    })
+  const updateCompletion = async (completed: boolean): Promise<boolean> => {
+    if (!activeLesson || !courseId) return false
+    const previous = new Set(completedLessonIds)
+    const next = new Set(previous)
+    if (completed) next.add(activeLesson.id)
+    else next.delete(activeLesson.id)
+    setCompletedLessonIds(next)
+    setSavingProgress(true)
+    try {
+      await setLessonCompleted(activeLesson.id, completed)
+      if (completed) await logLearningEvent(courseId, activeLesson.id, 'lesson_completed')
+      return true
+    } catch (caught) {
+      setCompletedLessonIds(previous)
+      setError(caught instanceof Error ? caught.message : t('learning.saveError'))
+      return false
+    } finally {
+      setSavingProgress(false)
+    }
   }
 
-  // Navigation handlers
-  const prevLesson = safeIndex > 0 ? allLessons[safeIndex - 1].lesson : null
+  if (loading) return <section className="page-wrap"><p>{t('learning.loading')}</p></section>
+  if (!course || !activeLesson) return <section className="page-wrap empty-catalog-state"><h1>{t('learning.unavailable')}</h1><p>{error || t('learning.enrollToOpen')}</p><Link className="button" to={`/courses/${courseId ?? ''}`}>{t('learning.coursePage')}</Link></section>
+
+  const previousLesson = safeIndex > 0 ? allLessons[safeIndex - 1].lesson : null
   const nextLesson = safeIndex < allLessons.length - 1 ? allLessons[safeIndex + 1].lesson : null
+  const progressPercent = Math.round((completedLessonIds.size / Math.max(allLessons.length, 1)) * 100)
+  const isCompleted = completedLessonIds.has(activeLesson.id)
+  const resourceUrl = activeLesson.videoUrl && resolvedResource.source === activeLesson.videoUrl
+    ? resolvedResource.url
+    : ''
 
-  const handleNext = () => {
-    // Mark current as completed
-    setCompletedLessonIds((prev) => new Set(prev).add(activeLesson.id))
-
-    if (nextLesson) {
-      navigate(`/learn/${course.id}/lesson/${nextLesson.id}`)
-      setQuizSelectedOption(null)
-      setQuizSubmitted(false)
-      setHomeworkSubmitted(false)
-    } else {
-      // Finished all lessons, offer certificate or dashboard
-      navigate(`/certificates/cert-ux-2026-982`)
-    }
+  const goToLesson = (id: string) => {
+    setMobileSidebarOpen(false)
+    setError(null)
+    navigate(`/learn/${course.id}/lesson/${id}`)
   }
 
-  const handlePrev = () => {
-    if (prevLesson) {
-      navigate(`/learn/${course.id}/lesson/${prevLesson.id}`)
-      setQuizSelectedOption(null)
-      setQuizSubmitted(false)
-      setHomeworkSubmitted(false)
+  const completeAndContinue = async () => {
+    if (!isCompleted && !await updateCompletion(true)) return
+    if (nextLesson) goToLesson(nextLesson.id)
+    else {
+      const certificateId = await issueCertificateIfEligible(course.id)
+      navigate(certificateId ? `/certificates/${certificateId}` : '/dashboard')
     }
   }
-
-  const progressPercent = Math.round((completedLessonIds.size / (allLessons.length || 1)) * 100)
 
   return (
     <section className="learning-layout">
-      {/* Mobile Top Bar for toggling lesson sidebar */}
-      <div className="learning-mobile-bar">
-        <button
-          type="button"
-          className="mobile-curriculum-toggle"
-          onClick={() => setMobileSidebarOpen(!mobileSidebarOpen)}
-          aria-expanded={mobileSidebarOpen}
-        >
-          <span>☰</span>
-          <b>Оглавление курса</b>
-          <small>
-            {safeIndex + 1}/{allLessons.length}
-          </small>
-        </button>
-        <span className="learning-mobile-progress">{progressPercent}% пройдено</span>
-      </div>
-
-      {/* Curriculum Sidebar */}
+      <div className="learning-mobile-bar"><button type="button" className="mobile-curriculum-toggle" onClick={() => setMobileSidebarOpen((open) => !open)} aria-expanded={mobileSidebarOpen}><span>☰</span><b>{t('learning.contents')}</b><small>{safeIndex + 1}/{allLessons.length}</small></button><span className="learning-mobile-progress">{t('learning.percent', { percent: progressPercent })}</span></div>
       <aside className={`lesson-sidebar ${mobileSidebarOpen ? 'mobile-open' : ''}`}>
-        <div className="sidebar-top-actions">
-          <Link to={`/courses/${course.id}`} className="back-to-course-link">
-            ← К описанию курса
-          </Link>
-          {mobileSidebarOpen && (
-            <button
-              type="button"
-              className="close-sidebar-btn"
-              onClick={() => setMobileSidebarOpen(false)}
-              aria-label="Закрыть оглавление"
-            >
-              ✕
-            </button>
-          )}
-        </div>
-
+        <div className="sidebar-top-actions"><Link to={`/courses/${course.id}`} className="back-to-course-link">← {t('learning.backCourse')}</Link>{mobileSidebarOpen ? <button type="button" className="close-sidebar-btn" onClick={() => setMobileSidebarOpen(false)} aria-label={t('learning.closeContents')}>✕</button> : null}</div>
         <h2 className="sidebar-course-title">{course.title}</h2>
-
-        <div className="sidebar-progress">
-          <div>
-            <span>Общий прогресс</span>
-            <b>{progressPercent}%</b>
-          </div>
-          <div className="progress-bar">
-            <i style={{ width: `${progressPercent}%` }} />
-          </div>
-          <small className="progress-lessons-label">
-            {completedLessonIds.size} из {allLessons.length} уроков завершено
-          </small>
-        </div>
-
-        <div className="sidebar-modules-list">
-          {course.modules.map((mod) => (
-            <div key={mod.id} className="sidebar-module-group">
-              <p className="sidebar-module-name">{mod.title}</p>
-              {mod.lessons.map((lesson) => {
-                const isActive = lesson.id === activeLesson.id
-                const isDone = completedLessonIds.has(lesson.id)
-                return (
-                  <button
-                    key={lesson.id}
-                    type="button"
-                    className={`lesson-link ${isActive ? 'active' : ''} ${isDone ? 'completed' : ''}`}
-                    onClick={() => {
-                      navigate(`/learn/${course.id}/lesson/${lesson.id}`)
-                      setMobileSidebarOpen(false)
-                      setQuizSelectedOption(null)
-                      setQuizSubmitted(false)
-                      setHomeworkSubmitted(false)
-                    }}
-                  >
-                    <span className="lesson-status-icon">{isDone ? '✓' : ''}</span>
-                    <span className="lesson-link-title">{lesson.title}</span>
-                  </button>
-                )
-              })}
-            </div>
-          ))}
-        </div>
+        <div className="sidebar-progress"><div><span>{t('learning.totalProgress')}</span><b>{progressPercent}%</b></div><div className="progress-bar"><i style={{ width: `${progressPercent}%` }} /></div><small className="progress-lessons-label">{t('learning.lessonsProgress', { completed: completedLessonIds.size, total: allLessons.length })}</small></div>
+        <div className="sidebar-modules-list">{course.modules.map((module) => <div key={module.id} className="sidebar-module-group"><p className="sidebar-module-name">{module.title}</p>{module.lessons.map((lesson) => <button key={lesson.id} type="button" className={`lesson-link ${lesson.id === activeLesson.id ? 'active' : ''} ${completedLessonIds.has(lesson.id) ? 'completed' : ''}`} onClick={() => goToLesson(lesson.id)}><span className="lesson-status-icon">{completedLessonIds.has(lesson.id) ? '✓' : ''}</span><span className="lesson-link-title">{lesson.title}</span></button>)}</div>)}</div>
       </aside>
 
-      {/* Main Lesson Content Area */}
       <article className="lesson-content">
-        <div className="lesson-meta-bar">
-          <p className="eyebrow">
-            {currentModuleTitle} · Урок {safeIndex + 1} из {allLessons.length}
-          </p>
-          <button
-            type="button"
-            className={`complete-toggle-btn ${isCurrentCompleted ? 'is-done' : ''}`}
-            onClick={toggleCompleted}
-            title={isCurrentCompleted ? 'Отметить как не пройденный' : 'Отметить урок как пройденный'}
-          >
-            {isCurrentCompleted ? '✓ Пройден' : 'Отметить как пройденный'}
-          </button>
-        </div>
+        {error && <div className="notification-banner error" role="alert">{error}</div>}
+        <div className="lesson-meta-bar"><p className="eyebrow">{activeItem.moduleTitle} · {t('learning.lessonPosition', { current: safeIndex + 1, total: allLessons.length })}</p><button type="button" className={`complete-toggle-btn ${isCompleted ? 'is-done' : ''}`} disabled={savingProgress} onClick={() => void updateCompletion(!isCompleted)}>{isCompleted ? t('learning.passed') : t('learning.markPassed')}</button></div>
+        <h1 className="lesson-main-title">{activeLesson.title}</h1><p className="lesson-lead">{activeLesson.description || t('learning.defaultLead')}</p>
 
-        <h1 className="lesson-main-title">{activeLesson.title}</h1>
-        <p className="lesson-lead">{activeLesson.description || 'Изучите материал урока и выполните проверочное действие.'}</p>
+        {activeLesson.type === 'video' && (resourceUrl ? <video className="lesson-media" controls src={resourceUrl}>{t('learning.videoUnsupported')}</video> : <div className="video-placeholder"><span>{t('learning.videoMissing')}</span></div>)}
+        {activeLesson.type === 'pdf' && (resourceUrl ? <iframe className="lesson-document" src={resourceUrl} title={t('learning.pdfTitle', { title: activeLesson.title })} /> : <p>{t('learning.pdfMissing')}</p>)}
+        {activeLesson.type === 'document' && (resourceUrl ? <iframe className="lesson-document" src={resourceUrl} title={t('learning.pdfTitle', { title: activeLesson.title })} /> : <div className="callout"><b>{t('learning.document')}</b><p>{t('learning.previewMissing')}</p></div>)}
+        {activeLesson.type === 'quiz' && <QuizPanel lessonId={activeLesson.id} onPassed={async () => { await updateCompletion(true) }} />}
+        {activeLesson.type === 'homework' && <AssignmentPanel lessonId={activeLesson.id} onSubmitted={async () => { await updateCompletion(true) }} />}
+        {activeLesson.type === 'text' && <div className="lesson-copy"><h2>{t('learning.material')}</h2><p>{activeLesson.content || t('learning.textMissing')}</p></div>}
 
-        {/* Content Render Based on Lesson Type */}
-        {activeLesson.type === 'video' && (
-          <div className="video-player-container">
-            <div className="video-placeholder">
-              <button type="button" aria-label="Воспроизвести учебное видео" className="video-play-btn">
-                ▶
-              </button>
-              <span>Видеоматериал к уроку: {activeLesson.title}</span>
-              <small className="video-duration">Длительность: {activeLesson.duration}</small>
-            </div>
-            <div className="video-timeline-mock">
-              <div className="video-progress" style={{ width: '35%' }} />
-            </div>
-          </div>
-        )}
-
-        {activeLesson.type === 'quiz' && (
-          <div className="quiz-container">
-            <div className="quiz-header">
-              <span className="quiz-tag">Проверочный тест</span>
-              <h3>Вопрос 1: В чем главное отличие глубинного интервью от фокус-группы?</h3>
-            </div>
-            <div className="quiz-options">
-              {[
-                'Индивидуальный разговор позволяет избежать эффекта конформизма и влияния группы',
-                'Фокус-группы проводятся только онлайн, а интервью — только очно',
-                'Интервью требует использования готовых анкет с вариантами «да/нет»',
-              ].map((opt, idx) => (
-                <label
-                  key={idx}
-                  className={`quiz-option-item ${quizSelectedOption === idx ? 'selected' : ''}`}
-                >
-                  <input
-                    type="radio"
-                    name="quiz"
-                    checked={quizSelectedOption === idx}
-                    onChange={() => {
-                      setQuizSelectedOption(idx)
-                      setQuizSubmitted(false)
-                    }}
-                  />
-                  <span>{opt}</span>
-                </label>
-              ))}
-            </div>
-            <div className="quiz-actions">
-              <button
-                type="button"
-                className="button button-small"
-                disabled={quizSelectedOption === null}
-                onClick={() => setQuizSubmitted(true)}
-              >
-                Проверить ответ
-              </button>
-              {quizSubmitted && (
-                <span className="quiz-result-msg success">
-                  ✓ Верно! Индивидуальный формат раскрывает личный контекст без давления мнения окружающих.
-                </span>
-              )}
-            </div>
-          </div>
-        )}
-
-        {activeLesson.type === 'homework' && (
-          <div className="homework-container">
-            <div className="homework-header">
-              <span className="homework-tag">Практическое задание</span>
-              <h3>Сдача работы на проверку преподавателю</h3>
-              <p>Прикрепите ссылку на выполненный проект в Figma или загрузите PDF-файл с решением.</p>
-            </div>
-
-            {homeworkSubmitted ? (
-              <div className="homework-success-banner">
-                <span className="success-icon">✓</span>
-                <div>
-                  <h4>Работа отправлена на проверку!</h4>
-                  <p>Преподаватель проверит решение и оставит комментарий в течение 24 часов.</p>
-                </div>
-              </div>
-            ) : (
-              <form
-                className="homework-form"
-                onSubmit={(e) => {
-                  e.preventDefault()
-                  setHomeworkSubmitted(true)
-                }}
-              >
-                <label>
-                  Ссылка на решение или комментарий
-                  <textarea
-                    rows={3}
-                    placeholder="Вставьте ссылку на Figma, GitHub или напишите пояснительную записку..."
-                    required
-                  />
-                </label>
-                <div className="file-dropzone-mock">
-                  <span>📎 Загрузить файлы решения (PDF, DOCX, ZIP до 25 МБ)</span>
-                </div>
-                <button type="submit" className="button">
-                  Отправить работу на проверку
-                </button>
-              </form>
-            )}
-          </div>
-        )}
-
-        {/* Text Notes & Explanation */}
-        <div className="lesson-copy">
-          <h2>Ключевые мысли и конспект</h2>
-          <p>
-            {activeLesson.content ||
-              'В SkillMind каждый курс построен так, чтобы вы могли двигаться последовательно. Короткие блоки теории сочетаются с практическими заданиями — это помогает закреплять знания сразу после изучения.'}
-          </p>
-          <div className="callout">
-            <b>Совет преподавателя</b>
-            <p>Выделяйте 20–30 минут в день на конспекты и практику — регулярность важнее идеального момента.</p>
-          </div>
-        </div>
-
-        {/* Previous / Next Lesson Navigation */}
-        <div className="lesson-navigation">
-          <button
-            className="button button-muted"
-            type="button"
-            onClick={handlePrev}
-            disabled={!prevLesson}
-          >
-            ← Предыдущий урок
-          </button>
-          <button className="button" type="button" onClick={handleNext}>
-            {nextLesson ? 'Завершить и продолжить →' : 'Завершить курс и получить сертификат 🏆'}
-          </button>
-        </div>
+        <div className="lesson-navigation"><button className="button button-muted" type="button" onClick={() => previousLesson && goToLesson(previousLesson.id)} disabled={!previousLesson}>{t('learning.previous')}</button><button className="button" type="button" disabled={savingProgress} onClick={() => void completeAndContinue()}>{nextLesson ? t('learning.next') : t('learning.finish')}</button></div>
       </article>
     </section>
   )

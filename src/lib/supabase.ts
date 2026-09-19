@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
+import type { Database } from '../types/database'
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL ?? ''
 const supabaseAnonKey =
@@ -11,7 +12,7 @@ export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey)
 // The app can still render its static screens before a Supabase project is connected.
 // Features that need data must check this value and show a clear setup state when it is null.
 export const supabase = isSupabaseConfigured
-  ? createClient(supabaseUrl, supabaseAnonKey, {
+  ? createClient<Database>(supabaseUrl, supabaseAnonKey, {
       auth: {
         persistSession: true,
         autoRefreshToken: true,

@@ -16,6 +16,9 @@ dist-ssr
 # Codex workspace artifacts
 work/
 outputs/
+!outputs/
+outputs/*
+!outputs/SkillMind-LMS-project-plan.md
 
 # Editor directories and files
 .vscode/*
@@ -27,3 +30,8 @@ outputs/
 *.njsproj
 *.sln
 *.sw?
+
+.vercel
+playwright-report/
+test-results/
+blob-report/

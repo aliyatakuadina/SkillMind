@@ -1,140 +1,61 @@
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { mockCourses } from '../data/mockData'
-
-const studentsData = [
-  { id: '1', name: 'Алия Абдуллина', email: 'aliya@example.com', progress: '82%', score: '4.9', status: 'Активен', lastActivity: 'Сегодня' },
-  { id: '2', name: 'Дамир Нурланов', email: 'damir@example.com', progress: '54%', score: '4.4', status: 'Активен', lastActivity: 'Вчера' },
-  { id: '3', name: 'София Иванова', email: 'sofia@example.com', progress: '96%', score: '5.0', status: 'Завершил(а)', lastActivity: '14 сен' },
-  { id: '4', name: 'Артем Смирнов', email: 'artem@example.com', progress: '28%', score: '4.2', status: 'Активен', lastActivity: '11 сен' },
-  { id: '5', name: 'Елена Кузнецова', email: 'elena@example.com', progress: '100%', score: '4.8', status: 'Завершил(а)', lastActivity: '9 сен' },
-]
+import { getCourseAnalytics, type CourseAnalytics } from '../lib/analyticsRepository'
+import { t } from '../i18n'
 
 export function AnalyticsPage() {
   const { courseId } = useParams<{ courseId: string }>()
-  const course = mockCourses.find((c) => c.id === courseId) ?? mockCourses[0]
+  const [analytics, setAnalytics] = useState<CourseAnalytics | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [loadedAt] = useState(() => Date.now())
 
-  const handleExportCSV = () => {
-    const headers = 'ID,Имя студента,Email,Прогресс,Средний балл,Статус,Последняя активность\n'
-    const rows = studentsData
-      .map(
-        (s) =>
-          `"${s.id}","${s.name}","${s.email}","${s.progress}","${s.score}","${s.status}","${s.lastActivity}"`
-      )
-      .join('\n')
-    const blob = new Blob([headers + rows], { type: 'text/csv;charset=utf-8;' })
+  useEffect(() => {
+    if (!courseId) return
+    let active = true
+    void getCourseAnalytics(courseId)
+      .then((data) => { if (active) setAnalytics(data) })
+      .catch((caught: Error) => { if (active) setError(caught.message) })
+      .finally(() => { if (active) setLoading(false) })
+    return () => { active = false }
+  }, [courseId])
+
+  const metrics = useMemo(() => {
+    const students = analytics?.students ?? []
+    return {
+      active: students.filter((student) => loadedAt - new Date(student.lastActivity).getTime() <= 30 * 86400000).length,
+      completed: students.filter((student) => student.progressPercent >= 100).length,
+      averageProgress: students.length ? Math.round(students.reduce((sum, student) => sum + student.progressPercent, 0) / students.length) : 0,
+      averageHours: students.length ? (students.reduce((sum, student) => sum + student.learningSeconds, 0) / students.length / 3600).toFixed(1) : '0.0',
+    }
+  }, [analytics, loadedAt])
+
+  const exportCsv = () => {
+    if (!analytics) return
+    const escape = (value: unknown) => `"${String(value ?? '').replaceAll('"', '""')}"`
+    const rows = analytics.students.map((student) => [student.id, student.name, student.email, student.progressPercent, student.averageQuizScore ?? '', student.learningSeconds, student.submittedAssignments, student.gradedAssignments, student.lastActivity].map(escape).join(','))
+    const header = ['ID', t('analytics.csvName'), 'Email', t('analytics.csvProgress'), t('analytics.csvAverageQuiz'), t('analytics.csvLearningTime'), t('analytics.csvSubmitted'), t('analytics.csvGraded'), t('analytics.csvLastActivity')].map(escape).join(',')
+    const blob = new Blob([`\uFEFF${header}\n${rows.join('\n')}`], { type: 'text/csv;charset=utf-8' })
     const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.setAttribute('download', `analytics_${course.id}_2026.csv`)
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = `analytics-${courseId}.csv`
+    anchor.click()
     URL.revokeObjectURL(url)
   }
 
-  return (
-    <section className="page-wrap analytics-page">
-      <nav className="breadcrumbs">
-        <Link to="/teacher/courses">Кабинет преподавателя</Link>
-        <span className="breadcrumb-separator">/</span>
-        <span>Аналитика курса</span>
-      </nav>
+  if (loading) return <section className="page-wrap"><p>{t('analytics.loading')}</p></section>
+  if (!analytics) return <section className="page-wrap empty-catalog-state"><h1>{t('analytics.unavailable')}</h1><p>{error}</p><Link className="button" to="/teacher/courses">{t('analytics.backCourses')}</Link></section>
 
-      <div className="section-heading">
-        <div>
-          <p className="eyebrow">{course.title}</p>
-          <h1>Статистика успеваемости</h1>
-        </div>
-        <button className="button button-muted" type="button" onClick={handleExportCSV}>
-          📥 Экспорт в CSV
-        </button>
-      </div>
+  return <section className="page-wrap analytics-page">
+    <nav className="breadcrumbs"><Link to="/teacher/courses">{t('teacher.eyebrow')}</Link><span className="breadcrumb-separator">/</span><span>{t('analytics.breadcrumb')}</span></nav>
+    <div className="section-heading"><div><p className="eyebrow">{analytics.courseTitle}</p><h1>{t('analytics.title')}</h1></div><button className="button button-muted" type="button" onClick={exportCsv}>{t('analytics.export')}</button></div>
+    <div className="metric-grid"><article className="metric"><span>{t('analytics.enrolled')}</span><strong>{analytics.students.length}</strong></article><article className="metric"><span>{t('analytics.active')}</span><strong>{metrics.active}</strong></article><article className="metric"><span>{t('analytics.completed')}</span><strong>{metrics.completed}</strong></article><article className="metric"><span>{t('analytics.averageProgress')}</span><strong>{metrics.averageProgress}%</strong></article><article className="metric"><span>{t('analytics.averageTime')}</span><strong>{t('analytics.hours', { hours: metrics.averageHours })}</strong></article></div>
 
-      {/* Key Metrics Grid */}
-      <div className="metric-grid">
-        <article className="metric">
-          <span>Записано студентов</span>
-          <strong>126</strong>
-        </article>
-        <article className="metric">
-          <span>Средний прогресс</span>
-          <strong>58%</strong>
-        </article>
-        <article className="metric">
-          <span>Завершили курс</span>
-          <strong>32</strong>
-        </article>
-        <article className="metric">
-          <span>Средняя оценка</span>
-          <strong>4,7</strong>
-        </article>
-      </div>
+    <div className="section-heading" style={{ marginTop: '40px' }}><h2>{t('analytics.quizResults')}</h2></div>
+    <div className="metric-grid">{analytics.quizResults.length ? analytics.quizResults.map((quiz) => <article className="metric" key={quiz.title}><span>{quiz.title}</span><strong>{quiz.averageScore == null ? '—' : `${quiz.averageScore}%`}</strong><small>{t('analytics.attempts', { count: quiz.attempts, rate: quiz.passRate ?? 0 })}</small></article>) : <p className="text-muted">{t('analytics.noQuizResults')}</p>}</div>
 
-      {/* Dynamics Chart Card */}
-      <div className="analytics-chart">
-        <div className="chart-header">
-          <div>
-            <h2>Динамика прохождения уроков</h2>
-            <p>Количество активных студентов по неделям</p>
-          </div>
-          <span className="chart-legend">● Активность за 8 недель</span>
-        </div>
-
-        <div className="bar-chart">
-          {[
-            { label: 'Н1', height: '32%', val: '42' },
-            { label: 'Н2', height: '45%', val: '58' },
-            { label: 'Н3', height: '52%', val: '65' },
-            { label: 'Н4', height: '48%', val: '60' },
-            { label: 'Н5', height: '68%', val: '86' },
-            { label: 'Н6', height: '84%', val: '106' },
-            { label: 'Н7', height: '76%', val: '95' },
-            { label: 'Н8', height: '94%', val: '118' },
-          ].map((bar, i) => (
-            <div key={i} className="chart-col">
-              <span className="bar-val">{bar.val}</span>
-              <i style={{ height: bar.height }} />
-              <span className="bar-label">{bar.label}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Students List */}
-      <div className="section-heading" style={{ marginTop: '40px' }}>
-        <h2>Студенты на курсе</h2>
-        <span className="count-badge">{studentsData.length} отображается</span>
-      </div>
-
-      <div className="teacher-table">
-        <div className="table-head">
-          <span>Студент</span>
-          <span>Прогресс</span>
-          <span>Средний балл</span>
-          <span>Статус</span>
-          <span>Активность</span>
-        </div>
-
-        {studentsData.map((student) => (
-          <div className="table-row" key={student.id}>
-            <div>
-              <b>{student.name}</b>
-              <small>{student.email}</small>
-            </div>
-            <div>
-              <div className="progress-bar mini-table-bar">
-                <i style={{ width: student.progress }} />
-              </div>
-              <small>{student.progress}</small>
-            </div>
-            <b>{student.score}</b>
-            <span className={`status ${student.status === 'Завершил(а)' ? 'published' : 'student'}`}>
-              {student.status}
-            </span>
-            <span className="text-muted">{student.lastActivity}</span>
-          </div>
-        ))}
-      </div>
-    </section>
-  )
+    <div className="section-heading" style={{ marginTop: '40px' }}><h2>{t('analytics.students')}</h2><span className="count-badge">{analytics.students.length}</span></div>
+    <div className="teacher-table"><div className="table-head"><span>{t('analytics.student')}</span><span>{t('analytics.progress')}</span><span>{t('analytics.quizzes')}</span><span>{t('analytics.assignments')}</span><span>{t('analytics.activity')}</span></div>{analytics.students.map((student) => <div className="table-row" key={student.id}><div><b>{student.name}</b><small>{student.email}</small></div><div><div className="progress-bar mini-table-bar"><i style={{ width: `${student.progressPercent}%` }} /></div><small>{student.completedLessons}/{analytics.lessonCount} · {student.progressPercent}%</small></div><b>{student.averageQuizScore == null ? '—' : `${student.averageQuizScore}%`}</b><span>{t('analytics.graded', { graded: student.gradedAssignments, submitted: student.submittedAssignments })}</span><span className="text-muted">{new Intl.DateTimeFormat('ru-RU').format(new Date(student.lastActivity))}</span></div>)}</div>
+  </section>
 }

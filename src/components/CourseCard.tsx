@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import type { Course } from '../types'
+import { t } from '../i18n'
 
 interface CourseCardProps {
   course: Course
@@ -29,12 +30,12 @@ export function CourseCard({ course }: CourseCardProps) {
         </h3>
         <p className="course-card-desc">{course.description}</p>
         <div className="course-card-author">
-          <small>Автор: {course.author}</small>
+          <small>{t('course.author', { name: course.author })}</small>
         </div>
         <div className="course-card-footer">
-          <span className="lessons-count">{course.lessonsCount} уроков</span>
+          <span className="lessons-count">{t('course.lessons', { count: course.lessonsCount })}</span>
           <Link className="card-action-link" to={`/courses/${course.id}`}>
-            Подробнее →
+            {t('course.details')}
           </Link>
         </div>
       </div>

@@ -1,6 +1,6 @@
 export type UserRole = 'student' | 'teacher' | 'admin'
 
-export type LessonType = 'text' | 'video' | 'quiz' | 'homework'
+export type LessonType = 'text' | 'video' | 'pdf' | 'document' | 'quiz' | 'homework'
 
 export type Lesson = {
   id: string
@@ -11,6 +11,7 @@ export type Lesson = {
   description?: string
   content?: string
   videoUrl?: string
+  sourceUrl?: string
 }
 
 export type Module = {

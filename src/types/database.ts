@@ -14,6 +14,409 @@ export type Database = {
   }
   public: {
     Tables: {
+      ai_attempts: {
+        Row: {
+          attempt_number: number
+          audio_seconds: number | null
+          connection_slug: string
+          cost_usd: number | null
+          finished_at: string | null
+          http_status: number | null
+          id: string
+          input_tokens: number | null
+          job_id: string
+          key_alias: string
+          model_id: string
+          outcome: string
+          output_tokens: number | null
+          provider: string
+          quota_group: string | null
+          retry_after: string | null
+          started_at: string
+          step_id: string | null
+        }
+        Insert: {
+          attempt_number: number
+          audio_seconds?: number | null
+          connection_slug: string
+          cost_usd?: number | null
+          finished_at?: string | null
+          http_status?: number | null
+          id?: string
+          input_tokens?: number | null
+          job_id: string
+          key_alias: string
+          model_id: string
+          outcome: string
+          output_tokens?: number | null
+          provider: string
+          quota_group?: string | null
+          retry_after?: string | null
+          started_at?: string
+          step_id?: string | null
+        }
+        Update: {
+          attempt_number?: number
+          audio_seconds?: number | null
+          connection_slug?: string
+          cost_usd?: number | null
+          finished_at?: string | null
+          http_status?: number | null
+          id?: string
+          input_tokens?: number | null
+          job_id?: string
+          key_alias?: string
+          model_id?: string
+          outcome?: string
+          output_tokens?: number | null
+          provider?: string
+          quota_group?: string | null
+          retry_after?: string | null
+          started_at?: string
+          step_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_attempts_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "ai_jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_attempts_step_id_job_id_fkey"
+            columns: ["step_id", "job_id"]
+            isOneToOne: false
+            referencedRelation: "ai_job_steps"
+            referencedColumns: ["id", "job_id"]
+          },
+        ]
+      }
+      ai_config_versions: {
+        Row: {
+          config: Json
+          created_at: string
+          created_by: string | null
+          description: string
+          file_sha256: string
+          id: string
+          version_number: number
+        }
+        Insert: {
+          config: Json
+          created_at?: string
+          created_by?: string | null
+          description?: string
+          file_sha256: string
+          id?: string
+          version_number?: never
+        }
+        Update: {
+          config?: Json
+          created_at?: string
+          created_by?: string | null
+          description?: string
+          file_sha256?: string
+          id?: string
+          version_number?: never
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_config_versions_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_job_leases: {
+        Row: {
+          expires_at: string
+          generation: number
+          heartbeat_at: string
+          job_id: string
+          lease_token: string
+          worker_id: string
+        }
+        Insert: {
+          expires_at: string
+          generation?: number
+          heartbeat_at?: string
+          job_id: string
+          lease_token?: string
+          worker_id: string
+        }
+        Update: {
+          expires_at?: string
+          generation?: number
+          heartbeat_at?: string
+          job_id?: string
+          lease_token?: string
+          worker_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_job_leases_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: true
+            referencedRelation: "ai_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_job_payloads: {
+        Row: {
+          input: Json
+          job_id: string
+          output: Json | null
+        }
+        Insert: {
+          input?: Json
+          job_id: string
+          output?: Json | null
+        }
+        Update: {
+          input?: Json
+          job_id?: string
+          output?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_job_payloads_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: true
+            referencedRelation: "ai_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_job_steps: {
+        Row: {
+          attempt_count: number
+          checkpoint: Json
+          chunk_index: number | null
+          completed_at: string | null
+          error_code: string | null
+          id: string
+          job_id: string
+          language: Database["public"]["Enums"]["content_language"] | null
+          started_at: string | null
+          status: string
+          step_key: string
+          updated_at: string
+        }
+        Insert: {
+          attempt_count?: number
+          checkpoint?: Json
+          chunk_index?: number | null
+          completed_at?: string | null
+          error_code?: string | null
+          id?: string
+          job_id: string
+          language?: Database["public"]["Enums"]["content_language"] | null
+          started_at?: string | null
+          status?: string
+          step_key: string
+          updated_at?: string
+        }
+        Update: {
+          attempt_count?: number
+          checkpoint?: Json
+          chunk_index?: number | null
+          completed_at?: string | null
+          error_code?: string | null
+          id?: string
+          job_id?: string
+          language?: Database["public"]["Enums"]["content_language"] | null
+          started_at?: string | null
+          status?: string
+          step_key?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_job_steps_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "ai_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_jobs: {
+        Row: {
+          available_at: string
+          completed_at: string | null
+          config_version_id: string
+          course_id: string | null
+          course_revision: number | null
+          created_at: string
+          error_code: string | null
+          id: string
+          idempotency_key: string
+          lesson_id: string | null
+          lesson_revision: number | null
+          progress: number
+          requested_by: string
+          source_id: string | null
+          source_revision: number | null
+          status: Database["public"]["Enums"]["ai_job_status"]
+          task_type: Database["public"]["Enums"]["ai_task_type"]
+          updated_at: string
+        }
+        Insert: {
+          available_at?: string
+          completed_at?: string | null
+          config_version_id: string
+          course_id?: string | null
+          course_revision?: number | null
+          created_at?: string
+          error_code?: string | null
+          id?: string
+          idempotency_key: string
+          lesson_id?: string | null
+          lesson_revision?: number | null
+          progress?: number
+          requested_by: string
+          source_id?: string | null
+          source_revision?: number | null
+          status?: Database["public"]["Enums"]["ai_job_status"]
+          task_type: Database["public"]["Enums"]["ai_task_type"]
+          updated_at?: string
+        }
+        Update: {
+          available_at?: string
+          completed_at?: string | null
+          config_version_id?: string
+          course_id?: string | null
+          course_revision?: number | null
+          created_at?: string
+          error_code?: string | null
+          id?: string
+          idempotency_key?: string
+          lesson_id?: string | null
+          lesson_revision?: number | null
+          progress?: number
+          requested_by?: string
+          source_id?: string | null
+          source_revision?: number | null
+          status?: Database["public"]["Enums"]["ai_job_status"]
+          task_type?: Database["public"]["Enums"]["ai_task_type"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_jobs_config_version_id_fkey"
+            columns: ["config_version_id"]
+            isOneToOne: false
+            referencedRelation: "ai_config_versions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_jobs_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_jobs_lesson_id_fkey"
+            columns: ["lesson_id"]
+            isOneToOne: false
+            referencedRelation: "lessons"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_jobs_requested_by_fkey"
+            columns: ["requested_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_jobs_source_id_lesson_id_fkey"
+            columns: ["source_id", "lesson_id"]
+            isOneToOne: false
+            referencedRelation: "media_sources"
+            referencedColumns: ["id", "lesson_id"]
+          },
+        ]
+      }
+      ai_model_catalog: {
+        Row: {
+          availability: string
+          capabilities: string[]
+          checked_at: string | null
+          connection_slug: string
+          context_tokens: number | null
+          discovered_at: string
+          id: string
+          model_id: string
+          provider: string
+        }
+        Insert: {
+          availability?: string
+          capabilities?: string[]
+          checked_at?: string | null
+          connection_slug: string
+          context_tokens?: number | null
+          discovered_at?: string
+          id?: string
+          model_id: string
+          provider: string
+        }
+        Update: {
+          availability?: string
+          capabilities?: string[]
+          checked_at?: string | null
+          connection_slug?: string
+          context_tokens?: number | null
+          discovered_at?: string
+          id?: string
+          model_id?: string
+          provider?: string
+        }
+        Relationships: []
+      }
+      ai_runtime_settings: {
+        Row: {
+          active_config_id: string | null
+          author_tools_enabled: boolean
+          chat_enabled: boolean
+          gamification_enabled: boolean
+          singleton: boolean
+          updated_at: string
+          video_enabled: boolean
+        }
+        Insert: {
+          active_config_id?: string | null
+          author_tools_enabled?: boolean
+          chat_enabled?: boolean
+          gamification_enabled?: boolean
+          singleton?: boolean
+          updated_at?: string
+          video_enabled?: boolean
+        }
+        Update: {
+          active_config_id?: string | null
+          author_tools_enabled?: boolean
+          chat_enabled?: boolean
+          gamification_enabled?: boolean
+          singleton?: boolean
+          updated_at?: string
+          video_enabled?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_runtime_settings_active_config_id_fkey"
+            columns: ["active_config_id"]
+            isOneToOne: false
+            referencedRelation: "ai_config_versions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       assignment_submissions: {
         Row: {
           assignment_id: string
@@ -167,6 +570,314 @@ export type Database = {
           },
         ]
       }
+      chat_messages: {
+        Row: {
+          citations: Json
+          content: string
+          created_at: string
+          id: string
+          idempotency_key: string
+          job_id: string | null
+          role: string
+          status: string
+          thread_id: string
+        }
+        Insert: {
+          citations?: Json
+          content: string
+          created_at?: string
+          id?: string
+          idempotency_key: string
+          job_id?: string | null
+          role: string
+          status?: string
+          thread_id: string
+        }
+        Update: {
+          citations?: Json
+          content?: string
+          created_at?: string
+          id?: string
+          idempotency_key?: string
+          job_id?: string | null
+          role?: string
+          status?: string
+          thread_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_messages_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "ai_jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chat_messages_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "chat_threads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      chat_threads: {
+        Row: {
+          course_id: string
+          created_at: string
+          id: string
+          language: Database["public"]["Enums"]["content_language"]
+          lesson_id: string | null
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          course_id: string
+          created_at?: string
+          id?: string
+          language?: Database["public"]["Enums"]["content_language"]
+          lesson_id?: string | null
+          title?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          course_id?: string
+          created_at?: string
+          id?: string
+          language?: Database["public"]["Enums"]["content_language"]
+          lesson_id?: string | null
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_threads_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chat_threads_lesson_id_fkey"
+            columns: ["lesson_id"]
+            isOneToOne: false
+            referencedRelation: "lessons"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chat_threads_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      course_chunks: {
+        Row: {
+          bundle_id: string | null
+          chunk_key: string
+          content: string
+          course_id: string
+          created_at: string
+          embedding: string
+          end_seconds: number | null
+          id: string
+          index_version_id: string
+          language: Database["public"]["Enums"]["content_language"]
+          lesson_id: string
+          lesson_revision: number
+          section_title: string | null
+          source_kind: string
+          start_seconds: number | null
+        }
+        Insert: {
+          bundle_id?: string | null
+          chunk_key: string
+          content: string
+          course_id: string
+          created_at?: string
+          embedding: string
+          end_seconds?: number | null
+          id?: string
+          index_version_id: string
+          language: Database["public"]["Enums"]["content_language"]
+          lesson_id: string
+          lesson_revision: number
+          section_title?: string | null
+          source_kind: string
+          start_seconds?: number | null
+        }
+        Update: {
+          bundle_id?: string | null
+          chunk_key?: string
+          content?: string
+          course_id?: string
+          created_at?: string
+          embedding?: string
+          end_seconds?: number | null
+          id?: string
+          index_version_id?: string
+          language?: Database["public"]["Enums"]["content_language"]
+          lesson_id?: string
+          lesson_revision?: number
+          section_title?: string | null
+          source_kind?: string
+          start_seconds?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "course_chunks_bundle_id_lesson_id_fkey"
+            columns: ["bundle_id", "lesson_id"]
+            isOneToOne: false
+            referencedRelation: "lesson_ai_bundles"
+            referencedColumns: ["id", "lesson_id"]
+          },
+          {
+            foreignKeyName: "course_chunks_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "course_chunks_index_version_id_course_id_fkey"
+            columns: ["index_version_id", "course_id"]
+            isOneToOne: false
+            referencedRelation: "course_index_versions"
+            referencedColumns: ["id", "course_id"]
+          },
+          {
+            foreignKeyName: "course_chunks_lesson_id_fkey"
+            columns: ["lesson_id"]
+            isOneToOne: false
+            referencedRelation: "lessons"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      course_index_versions: {
+        Row: {
+          activated_at: string | null
+          course_id: string
+          created_at: string
+          dimensions: number
+          id: string
+          model_id: string
+          provider: string
+          status: string
+        }
+        Insert: {
+          activated_at?: string | null
+          course_id: string
+          created_at?: string
+          dimensions?: number
+          id?: string
+          model_id: string
+          provider: string
+          status?: string
+        }
+        Update: {
+          activated_at?: string | null
+          course_id?: string
+          created_at?: string
+          dimensions?: number
+          id?: string
+          model_id?: string
+          provider?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "course_index_versions_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      course_ranking_memberships: {
+        Row: {
+          course_id: string
+          joined_at: string
+          left_at: string | null
+          user_id: string
+        }
+        Insert: {
+          course_id: string
+          joined_at?: string
+          left_at?: string | null
+          user_id: string
+        }
+        Update: {
+          course_id?: string
+          joined_at?: string
+          left_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "course_ranking_memberships_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "course_ranking_memberships_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      course_weekly_scores: {
+        Row: {
+          course_id: string
+          final_rank: number | null
+          finalized_at: string | null
+          score: number
+          user_id: string
+          week_start: string
+        }
+        Insert: {
+          course_id: string
+          final_rank?: number | null
+          finalized_at?: string | null
+          score?: number
+          user_id: string
+          week_start: string
+        }
+        Update: {
+          course_id?: string
+          final_rank?: number | null
+          finalized_at?: string | null
+          score?: number
+          user_id?: string
+          week_start?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "course_weekly_scores_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "course_weekly_scores_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       courses: {
         Row: {
           author_id: string
@@ -265,6 +976,41 @@ export type Database = {
           },
         ]
       }
+      gamification_preferences: {
+        Row: {
+          next_goal_effective_week: string | null
+          next_weekly_goal_days: number | null
+          public_alias: string | null
+          updated_at: string
+          user_id: string
+          weekly_goal_days: number
+        }
+        Insert: {
+          next_goal_effective_week?: string | null
+          next_weekly_goal_days?: number | null
+          public_alias?: string | null
+          updated_at?: string
+          user_id: string
+          weekly_goal_days?: number
+        }
+        Update: {
+          next_goal_effective_week?: string | null
+          next_weekly_goal_days?: number | null
+          public_alias?: string | null
+          updated_at?: string
+          user_id?: string
+          weekly_goal_days?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gamification_preferences_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       learning_events: {
         Row: {
           course_id: string
@@ -320,6 +1066,99 @@ export type Database = {
           },
         ]
       }
+      lesson_ai_bundles: {
+        Row: {
+          content_revision: number
+          course_id: string
+          created_at: string
+          id: string
+          job_id: string | null
+          lesson_id: string
+          lesson_revision: number
+          published_at: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          source_id: string | null
+          source_revision: number | null
+          stale_at: string | null
+          status: string
+          updated_at: string
+          version_number: number
+        }
+        Insert: {
+          content_revision?: number
+          course_id: string
+          created_at?: string
+          id?: string
+          job_id?: string | null
+          lesson_id: string
+          lesson_revision: number
+          published_at?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          source_id?: string | null
+          source_revision?: number | null
+          stale_at?: string | null
+          status?: string
+          updated_at?: string
+          version_number: number
+        }
+        Update: {
+          content_revision?: number
+          course_id?: string
+          created_at?: string
+          id?: string
+          job_id?: string | null
+          lesson_id?: string
+          lesson_revision?: number
+          published_at?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          source_id?: string | null
+          source_revision?: number | null
+          stale_at?: string | null
+          status?: string
+          updated_at?: string
+          version_number?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lesson_ai_bundles_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lesson_ai_bundles_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "ai_jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lesson_ai_bundles_lesson_id_fkey"
+            columns: ["lesson_id"]
+            isOneToOne: false
+            referencedRelation: "lessons"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lesson_ai_bundles_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lesson_ai_bundles_source_id_lesson_id_fkey"
+            columns: ["source_id", "lesson_id"]
+            isOneToOne: false
+            referencedRelation: "media_sources"
+            referencedColumns: ["id", "lesson_id"]
+          },
+        ]
+      }
       lesson_items: {
         Row: {
           created_at: string
@@ -354,6 +1193,50 @@ export type Database = {
             columns: ["lesson_id"]
             isOneToOne: false
             referencedRelation: "lessons"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lesson_localizations: {
+        Row: {
+          bundle_id: string
+          content_revision: number
+          glossary: Json
+          language: Database["public"]["Enums"]["content_language"]
+          lecture: Json
+          manually_edited: boolean
+          summary: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          bundle_id: string
+          content_revision?: number
+          glossary?: Json
+          language: Database["public"]["Enums"]["content_language"]
+          lecture: Json
+          manually_edited?: boolean
+          summary?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          bundle_id?: string
+          content_revision?: number
+          glossary?: Json
+          language?: Database["public"]["Enums"]["content_language"]
+          lecture?: Json
+          manually_edited?: boolean
+          summary?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lesson_localizations_bundle_id_fkey"
+            columns: ["bundle_id"]
+            isOneToOne: false
+            referencedRelation: "lesson_ai_bundles"
             referencedColumns: ["id"]
           },
         ]
@@ -398,6 +1281,145 @@ export type Database = {
             columns: ["module_id"]
             isOneToOne: false
             referencedRelation: "modules"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      media_sources: {
+        Row: {
+          byte_size: number | null
+          content_revision: number
+          content_sha256: string | null
+          course_id: string
+          created_at: string
+          created_by: string | null
+          duration_seconds: number | null
+          error_code: string | null
+          id: string
+          lesson_id: string
+          mime_type: string | null
+          original_name: string | null
+          source_kind: string
+          status: string
+          updated_at: string
+          youtube_id: string | null
+        }
+        Insert: {
+          byte_size?: number | null
+          content_revision?: number
+          content_sha256?: string | null
+          course_id: string
+          created_at?: string
+          created_by?: string | null
+          duration_seconds?: number | null
+          error_code?: string | null
+          id?: string
+          lesson_id: string
+          mime_type?: string | null
+          original_name?: string | null
+          source_kind: string
+          status?: string
+          updated_at?: string
+          youtube_id?: string | null
+        }
+        Update: {
+          byte_size?: number | null
+          content_revision?: number
+          content_sha256?: string | null
+          course_id?: string
+          created_at?: string
+          created_by?: string | null
+          duration_seconds?: number | null
+          error_code?: string | null
+          id?: string
+          lesson_id?: string
+          mime_type?: string | null
+          original_name?: string | null
+          source_kind?: string
+          status?: string
+          updated_at?: string
+          youtube_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "media_sources_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "media_sources_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "media_sources_lesson_id_fkey"
+            columns: ["lesson_id"]
+            isOneToOne: false
+            referencedRelation: "lessons"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      media_uploads: {
+        Row: {
+          bucket_name: string
+          completed_at: string | null
+          created_at: string
+          expected_bytes: number
+          expires_at: string
+          id: string
+          multipart_upload_id: string | null
+          object_key: string
+          part_size_bytes: number
+          source_id: string
+          status: string
+          user_id: string
+        }
+        Insert: {
+          bucket_name: string
+          completed_at?: string | null
+          created_at?: string
+          expected_bytes: number
+          expires_at?: string
+          id?: string
+          multipart_upload_id?: string | null
+          object_key: string
+          part_size_bytes?: number
+          source_id: string
+          status?: string
+          user_id: string
+        }
+        Update: {
+          bucket_name?: string
+          completed_at?: string | null
+          created_at?: string
+          expected_bytes?: number
+          expires_at?: string
+          id?: string
+          multipart_upload_id?: string | null
+          object_key?: string
+          part_size_bytes?: number
+          source_id?: string
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "media_uploads_source_id_fkey"
+            columns: ["source_id"]
+            isOneToOne: false
+            referencedRelation: "media_sources"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "media_uploads_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -722,6 +1744,83 @@ export type Database = {
           },
         ]
       }
+      subtitle_tracks: {
+        Row: {
+          bundle_id: string
+          content_revision: number
+          cues: Json
+          language: Database["public"]["Enums"]["content_language"]
+          manually_edited: boolean
+          srt_text: string
+          updated_at: string
+          vtt_text: string
+        }
+        Insert: {
+          bundle_id: string
+          content_revision?: number
+          cues?: Json
+          language: Database["public"]["Enums"]["content_language"]
+          manually_edited?: boolean
+          srt_text?: string
+          updated_at?: string
+          vtt_text?: string
+        }
+        Update: {
+          bundle_id?: string
+          content_revision?: number
+          cues?: Json
+          language?: Database["public"]["Enums"]["content_language"]
+          manually_edited?: boolean
+          srt_text?: string
+          updated_at?: string
+          vtt_text?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subtitle_tracks_bundle_id_fkey"
+            columns: ["bundle_id"]
+            isOneToOne: false
+            referencedRelation: "lesson_ai_bundles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_achievements: {
+        Row: {
+          achievement_code: string
+          earned_at: string
+          source_ledger_id: string | null
+          user_id: string
+        }
+        Insert: {
+          achievement_code: string
+          earned_at?: string
+          source_ledger_id?: string | null
+          user_id: string
+        }
+        Update: {
+          achievement_code?: string
+          earned_at?: string
+          source_ledger_id?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_achievements_source_ledger_id_fkey"
+            columns: ["source_ledger_id"]
+            isOneToOne: false
+            referencedRelation: "xp_ledger"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_achievements_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_progress: {
         Row: {
           completed_at: string | null
@@ -757,6 +1856,112 @@ export type Database = {
           },
           {
             foreignKeyName: "user_progress_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      weekly_learning_goals: {
+        Row: {
+          active_days: string[]
+          completed_at: string | null
+          target_days: number
+          user_id: string
+          week_start: string
+        }
+        Insert: {
+          active_days?: string[]
+          completed_at?: string | null
+          target_days: number
+          user_id: string
+          week_start: string
+        }
+        Update: {
+          active_days?: string[]
+          completed_at?: string | null
+          target_days?: number
+          user_id?: string
+          week_start?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "weekly_learning_goals_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      xp_ledger: {
+        Row: {
+          adjusted_by: string | null
+          adjustment_of: string | null
+          course_id: string | null
+          earned_at: string
+          entity_id: string
+          event_type: string
+          historical: boolean
+          id: string
+          reason: string | null
+          recorded_at: string
+          user_id: string
+          xp: number
+        }
+        Insert: {
+          adjusted_by?: string | null
+          adjustment_of?: string | null
+          course_id?: string | null
+          earned_at?: string
+          entity_id: string
+          event_type: string
+          historical?: boolean
+          id?: string
+          reason?: string | null
+          recorded_at?: string
+          user_id: string
+          xp: number
+        }
+        Update: {
+          adjusted_by?: string | null
+          adjustment_of?: string | null
+          course_id?: string | null
+          earned_at?: string
+          entity_id?: string
+          event_type?: string
+          historical?: boolean
+          id?: string
+          reason?: string | null
+          recorded_at?: string
+          user_id?: string
+          xp?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "xp_ledger_adjusted_by_fkey"
+            columns: ["adjusted_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "xp_ledger_adjustment_of_fkey"
+            columns: ["adjustment_of"]
+            isOneToOne: false
+            referencedRelation: "xp_ledger"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "xp_ledger_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "xp_ledger_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "profiles"
@@ -866,7 +2071,24 @@ export type Database = {
       }
     }
     Enums: {
+      ai_job_status:
+        | "queued"
+        | "running"
+        | "waiting_provider"
+        | "needs_review"
+        | "completed"
+        | "failed"
+        | "cancelled"
+      ai_task_type:
+        | "course_structure"
+        | "lesson_summary"
+        | "quiz"
+        | "video_bundle"
+        | "translation"
+        | "chat"
+        | "embedding"
       assignment_status: "draft" | "submitted" | "returned" | "graded"
+      content_language: "ru" | "kk" | "en"
       course_status:
         | "draft"
         | "pending_review"
@@ -1017,7 +2239,26 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      ai_job_status: [
+        "queued",
+        "running",
+        "waiting_provider",
+        "needs_review",
+        "completed",
+        "failed",
+        "cancelled",
+      ],
+      ai_task_type: [
+        "course_structure",
+        "lesson_summary",
+        "quiz",
+        "video_bundle",
+        "translation",
+        "chat",
+        "embedding",
+      ],
       assignment_status: ["draft", "submitted", "returned", "graded"],
+      content_language: ["ru", "kk", "en"],
       course_status: [
         "draft",
         "pending_review",

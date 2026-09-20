@@ -4,6 +4,8 @@ Frontend онлайн-платформы обучения SkillMind.
 
 Полная спецификация MVP, роли, маршруты, модель данных, RLS и критерии готовности описаны в [`outputs/SkillMind-LMS-project-plan.md`](outputs/SkillMind-LMS-project-plan.md).
 
+Согласованный план расширения: [AI, трёхъязычные материалы и геймификация](docs/AI-GAMIFICATION-PLAN.md). Документ включает архитектуру Docker/MinIO, несколько AI-провайдеров, правила переключения моделей и журнал выполнения этапов.
+
 ## Технологии
 
 - React 19 + TypeScript + Vite

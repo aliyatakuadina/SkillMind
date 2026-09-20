@@ -323,11 +323,13 @@ test('course saves preserve IDs and use every returned revision, including submi
 test('revision conflict preserves local work and requires explicit reload before saving', async ({ page }) => {
   await authenticateAsTeacher(page)
   await page.setViewportSize({ width: 390, height: 844 })
-  let reads = 0
+  let serverRevision = 4
   let saves = 0
-  await page.route('**/rest/v1/courses*', (route) => route.fulfill({ json: reads++ === 0 ? revisionCourse() : revisionCourse(8, 'Правки другого автора') }))
+  await page.route('**/rest/v1/courses*', (route) => route.fulfill({ json: serverRevision === 4 ? revisionCourse() : revisionCourse(8, 'Правки другого автора') }))
   await page.route('**/rest/v1/rpc/save_course_draft_v2', async (route) => {
     if (++saves === 1) {
+      expect(route.request().postDataJSON().p_expected_revision).toBe(4)
+      serverRevision = 8
       await route.fulfill({ status: 409, json: { code: 'PT409', message: 'COURSE_REVISION_CONFLICT' } })
     } else {
       expect(route.request().postDataJSON().p_expected_revision).toBe(8)

@@ -5,6 +5,8 @@ import { t } from '../i18n'
 
 export interface CourseDraftLesson {
   id: string
+  itemId?: string
+  contentRevision?: number
   title: string
   description: string
   type: LessonType
@@ -45,6 +47,7 @@ export interface CourseDraftModule {
 
 export interface CourseDraft {
   id?: string
+  contentRevision?: number
   slug?: string
   title: string
   description: string
@@ -91,7 +94,7 @@ export async function getCourseDraft(courseId: string): Promise<CourseDraft> {
   const client = requireClient()
   const { data, error } = await client
     .from('courses')
-    .select('id,slug,title,description,category,estimated_duration,modules(id,title,order_index,lessons(id,title,description,order_index,is_required,lesson_items(type,payload,order_index),quizzes(passing_score,attempt_limit,quiz_questions(id,type,prompt,options,answer_key,points,order_index))))')
+    .select('id,content_revision,slug,title,description,category,estimated_duration,modules(id,title,order_index,lessons(id,content_revision,title,description,order_index,is_required,lesson_items(id,type,payload,order_index),quizzes(passing_score,attempt_limit,quiz_questions(id,type,prompt,options,answer_key,points,order_index))))')
     .eq('id', courseId)
     .single()
 
@@ -99,6 +102,7 @@ export async function getCourseDraft(courseId: string): Promise<CourseDraft> {
   const orderedModules = [...data.modules].sort((a, b) => a.order_index - b.order_index)
   return {
     id: data.id,
+    contentRevision: data.content_revision,
     slug: data.slug,
     title: data.title,
     description: data.description,
@@ -115,6 +119,8 @@ export async function getCourseDraft(courseId: string): Promise<CourseDraft> {
           const quiz = lesson.quizzes
           return {
             id: lesson.id,
+            itemId: item?.id,
+            contentRevision: lesson.content_revision,
             title: lesson.title,
             description: lesson.description,
             type: databaseTypeToLessonType(item?.type),
@@ -136,13 +142,27 @@ export async function getCourseDraft(courseId: string): Promise<CourseDraft> {
   }
 }
 
-export async function saveCourseDraft(draft: CourseDraft, submit: boolean): Promise<string> {
+export class CourseSaveConflictError extends Error {
+  constructor() {
+    super(t('builder.revisionConflict'))
+    this.name = 'CourseSaveConflictError'
+  }
+}
+
+export async function saveCourseDraft(draft: CourseDraft, submit: boolean): Promise<{
+  id: string
+  slug: string
+  contentRevision: number
+}> {
   const client = requireClient()
   const slug = draft.slug || `${slugify(draft.title)}-${crypto.randomUUID().slice(0, 8)}`
   const modules = draft.modules.map((module, moduleIndex) => ({
+    id: module.id,
     title: module.title,
     order_index: moduleIndex,
     lessons: module.lessons.map((lesson, lessonIndex) => ({
+      id: lesson.id,
+      item_id: lesson.itemId,
       title: lesson.title,
       description: lesson.description,
       order_index: lessonIndex,
@@ -164,10 +184,11 @@ export async function saveCourseDraft(draft: CourseDraft, submit: boolean): Prom
     })),
   }))
 
-  const { data, error } = await client.rpc('save_course_draft', {
+  const { data, error } = await client.rpc('save_course_draft_v2', {
     // PostgreSQL parameters accept NULL even though generated RPC argument types
     // cannot express nullable function parameters.
     p_course_id: draft.id ?? (null as unknown as string),
+    p_expected_revision: draft.contentRevision ?? 0,
     p_title: draft.title,
     p_slug: slug,
     p_description: draft.description,
@@ -176,8 +197,19 @@ export async function saveCourseDraft(draft: CourseDraft, submit: boolean): Prom
     p_modules: modules as unknown as Json,
     p_submit: submit,
   })
-  if (error) throw error
-  return data as string
+  if (error) {
+    if (error.message === 'COURSE_REVISION_CONFLICT') throw new CourseSaveConflictError()
+    const message = error.message === 'COURSE_LESSON_HAS_ACTIVITY' ? t('builder.lessonHasActivity')
+      : error.message === 'COURSE_ASSESSMENT_HAS_ATTEMPTS' ? t('builder.quizHasAttempts')
+      : error.message === 'COURSE_ASSIGNMENT_HAS_SUBMISSIONS' ? t('builder.assignmentHasSubmissions')
+      : error.message === 'COURSE_EDITOR_UPDATE_REQUIRED' ? t('builder.editorUpdateRequired')
+      : error.message
+    throw new Error(message)
+  }
+  if (!isRecord(data) || typeof data.course_id !== 'string' || typeof data.content_revision !== 'number') {
+    throw new Error(t('builder.saveError'))
+  }
+  return { id: data.course_id, slug, contentRevision: data.content_revision }
 }
 
 export async function uploadCourseAsset(courseId: string, file: File): Promise<string> {
@@ -254,6 +286,7 @@ function serializeQuestion(question: QuizQuestionDraft, orderIndex: number) {
   if (question.type === 'matching') {
     const right = question.pairs.map((pair) => pair.right).reverse()
     return {
+      id: question.id,
       type: question.type,
       prompt: question.prompt,
       options: [],
@@ -268,6 +301,7 @@ function serializeQuestion(question: QuizQuestionDraft, orderIndex: number) {
 
   const correctOptions = [...question.correctOptions].sort((a, b) => a - b)
   return {
+    id: question.id,
     type: question.type,
     prompt: question.prompt,
     options: question.options,

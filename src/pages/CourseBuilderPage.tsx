@@ -4,6 +4,7 @@ import {
   getCourseDraft,
   saveCourseDraft,
   uploadCourseAsset,
+  CourseSaveConflictError,
   type CourseDraft,
   type CourseDraftLesson,
   type CourseDraftModule,
@@ -30,11 +31,10 @@ const newLesson = (number: number): CourseDraftLesson => ({
   maxFileSizeBytes: 10485760,
 })
 
-const initialModules: CourseDraftModule[] = [{
-  id: crypto.randomUUID(),
-  title: t('builder.defaultModule'),
-  lessons: [newLesson(1)],
-}]
+const newDraft = (): CourseDraft => ({
+  title: '', description: '', category: t('catalog.design'), duration: t('builder.defaultCourseDuration'),
+  modules: [{ id: crypto.randomUUID(), title: t('builder.defaultModule'), lessons: [newLesson(1)] }],
+})
 
 const newQuestion = (): QuizQuestionDraft => ({
   id: crypto.randomUUID(),
@@ -58,14 +58,17 @@ function isInvalidQuestion(question: QuizQuestionDraft) {
 
 export function CourseBuilderPage() {
   const { courseId } = useParams<{ courseId: string }>()
+  return <CourseBuilderEditor key={courseId ?? 'new'} courseId={courseId} />
+}
+
+function CourseBuilderEditor({ courseId }: { courseId?: string }) {
   const navigate = useNavigate()
-  const [draft, setDraft] = useState<CourseDraft>({
-    title: '', description: '', category: t('catalog.design'), duration: t('builder.defaultCourseDuration'), modules: initialModules,
-  })
+  const [draft, setDraft] = useState<CourseDraft>(newDraft)
   const [pendingFiles, setPendingFiles] = useState<Record<string, { material?: File; source?: File }>>({})
   const [loading, setLoading] = useState(Boolean(courseId))
   const [saving, setSaving] = useState(false)
   const [notification, setNotification] = useState<{ kind: 'success' | 'error'; text: string } | null>(null)
+  const [revisionConflict, setRevisionConflict] = useState(false)
 
   useEffect(() => {
     if (!courseId) return
@@ -121,6 +124,7 @@ export function CourseBuilderPage() {
   }
 
   const handleSave = async (submit: boolean) => {
+    if (revisionConflict) return
     const validationError = validate()
     if (validationError) {
       setNotification({ kind: 'error', text: validationError })
@@ -129,18 +133,19 @@ export function CourseBuilderPage() {
     setSaving(true)
     setNotification(null)
     try {
-      let savedDraft = draft
-      const savedId = await saveCourseDraft(savedDraft, false)
-      if (Object.keys(pendingFiles).length > 0) {
+      let savedDraft = { ...draft, ...await saveCourseDraft(draft, false) }
+      // Keep the successful revision even if a subsequent upload fails.
+      setDraft(savedDraft)
+      const hasUploads = Object.keys(pendingFiles).length > 0
+      if (hasUploads) {
         const uploads = await Promise.all(Object.entries(pendingFiles).map(async ([lessonId, files]) => ({
           lessonId,
-          material: files.material ? await uploadCourseAsset(savedId, files.material) : undefined,
-          source: files.source ? await uploadCourseAsset(savedId, files.source) : undefined,
+          material: files.material ? await uploadCourseAsset(savedDraft.id, files.material) : undefined,
+          source: files.source ? await uploadCourseAsset(savedDraft.id, files.source) : undefined,
         })))
         const uploadedPaths = new Map(uploads.map((upload) => [upload.lessonId, upload]))
         savedDraft = {
           ...savedDraft,
-          id: savedId,
           modules: savedDraft.modules.map((module) => ({
             ...module,
             lessons: module.lessons.map((lesson) => ({
@@ -153,9 +158,37 @@ export function CourseBuilderPage() {
         setDraft(savedDraft)
         setPendingFiles({})
       }
-      if (submit || savedDraft !== draft) await saveCourseDraft({ ...savedDraft, id: savedId }, submit)
+      if (submit || hasUploads) {
+        savedDraft = { ...savedDraft, ...await saveCourseDraft(savedDraft, submit) }
+        setDraft(savedDraft)
+      }
       setNotification({ kind: 'success', text: submit ? t('builder.submitted') : t('builder.saved') })
-      if (!courseId) navigate(`/teacher/courses/${savedId}/edit`, { replace: true })
+      if (!courseId) navigate(`/teacher/courses/${savedDraft.id}/edit`, { replace: true })
+    } catch (error) {
+      setRevisionConflict(error instanceof CourseSaveConflictError)
+      setNotification({ kind: 'error', text: error instanceof Error ? error.message : t('builder.saveError') })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const downloadDraft = () => {
+    const url = URL.createObjectURL(new Blob([JSON.stringify(draft, null, 2)], { type: 'application/json' }))
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `skillmind-draft-${draft.id ?? 'new'}.json`
+    link.click()
+    setTimeout(() => URL.revokeObjectURL(url), 1000)
+  }
+
+  const reloadServerDraft = async () => {
+    if (!draft.id) return
+    setSaving(true)
+    try {
+      setDraft(await getCourseDraft(draft.id))
+      setPendingFiles({})
+      setRevisionConflict(false)
+      setNotification(null)
     } catch (error) {
       setNotification({ kind: 'error', text: error instanceof Error ? error.message : t('builder.saveError') })
     } finally {
@@ -171,14 +204,18 @@ export function CourseBuilderPage() {
       <div className="section-heading">
         <div><p className="eyebrow">{courseId ? t('builder.editing') : t('builder.creating')}</p><h1>{draft.title || t('builder.newCourse')}</h1></div>
         <div className="builder-header-actions">
-          <button className="button button-muted" type="button" disabled={saving} onClick={() => void handleSave(false)}>{t('builder.saveDraft')}</button>
-          <button className="button" type="button" disabled={saving} onClick={() => void handleSave(true)}>{saving ? t('builder.saving') : t('builder.submit')}</button>
+          <button className="button button-muted" type="button" disabled={saving || revisionConflict} onClick={() => void handleSave(false)}>{t('builder.saveDraft')}</button>
+          <button className="button" type="button" disabled={saving || revisionConflict} onClick={() => void handleSave(true)}>{saving ? t('builder.saving') : t('builder.submit')}</button>
         </div>
       </div>
 
       {notification && <div className={`notification-banner ${notification.kind}`} role={notification.kind === 'error' ? 'alert' : 'status'}><span>{notification.text}</span></div>}
+      {revisionConflict && <div className="builder-conflict-actions">
+        <button className="button button-muted" type="button" onClick={downloadDraft}>{t('builder.downloadDraft')}</button>
+        <button className="button button-muted" type="button" disabled={saving} onClick={() => void reloadServerDraft()}>{t('builder.reloadServerDraft')}</button>
+      </div>}
 
-      <div className="builder-grid">
+      <fieldset className="builder-grid" disabled={saving}>
         <form className="builder-form" onSubmit={(event) => event.preventDefault()}>
           <h3>{t('builder.parameters')}</h3>
           <label>{t('builder.courseTitle')}<input value={draft.title} maxLength={160} onChange={(event) => updateDraft({ title: event.target.value })} required /></label>
@@ -248,7 +285,7 @@ export function CourseBuilderPage() {
             ))}
           </div>
         </aside>
-      </div>
+      </fieldset>
     </section>
   )
 }

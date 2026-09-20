@@ -171,6 +171,7 @@ export type Database = {
         Row: {
           author_id: string
           category: string | null
+          content_revision: number
           cover_url: string | null
           created_at: string
           description: string
@@ -186,6 +187,7 @@ export type Database = {
         Insert: {
           author_id: string
           category?: string | null
+          content_revision?: number
           cover_url?: string | null
           created_at?: string
           description?: string
@@ -201,6 +203,7 @@ export type Database = {
         Update: {
           author_id?: string
           category?: string | null
+          content_revision?: number
           cover_url?: string | null
           created_at?: string
           description?: string
@@ -357,6 +360,7 @@ export type Database = {
       }
       lessons: {
         Row: {
+          content_revision: number
           created_at: string
           description: string
           id: string
@@ -367,6 +371,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          content_revision?: number
           created_at?: string
           description?: string
           id?: string
@@ -377,6 +382,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          content_revision?: number
           created_at?: string
           description?: string
           id?: string
@@ -784,6 +790,12 @@ export type Database = {
       can_access_course: { Args: { p_course_id: string }; Returns: boolean }
       can_access_lesson: { Args: { p_lesson_id: string }; Returns: boolean }
       can_manage_lesson: { Args: { p_lesson_id: string }; Returns: boolean }
+      can_manage_lesson_write: {
+        Args: { p_lesson_id: string }
+        Returns: boolean
+      }
+      can_manage_module: { Args: { p_module_id: string }; Returns: boolean }
+      can_manage_quiz_write: { Args: { p_quiz_id: string }; Returns: boolean }
       get_course_analytics: { Args: { p_course_id: string }; Returns: Json }
       get_quiz_questions: {
         Args: { p_quiz_id: string }
@@ -823,6 +835,20 @@ export type Database = {
           p_title: string
         }
         Returns: string
+      }
+      save_course_draft_v2: {
+        Args: {
+          p_category: string
+          p_course_id: string
+          p_description: string
+          p_estimated_duration: string
+          p_expected_revision: number
+          p_modules: Json
+          p_slug: string
+          p_submit: boolean
+          p_title: string
+        }
+        Returns: Json
       }
       start_quiz_attempt: { Args: { p_quiz_id: string }; Returns: string }
       submit_quiz_attempt: {
@@ -1021,4 +1047,3 @@ export const Constants = {
     },
   },
 } as const
-

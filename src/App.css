@@ -2154,12 +2154,13 @@ h3 {
 /* Course Builder */
 .builder-grid {
   display: grid;
-  grid-template-columns: 0.85fr 1.15fr;
+  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
   gap: 28px;
 }
 
 .builder-form,
 .builder-outline {
+  min-width: 0;
   padding: 26px;
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
@@ -2236,6 +2237,7 @@ h3 {
 
 .builder-module-title-input {
   flex: 1;
+  min-width: 0;
   padding: 8px 12px;
   border: 1px solid #cdd8cf;
   border-radius: var(--radius-sm);
@@ -2319,6 +2321,7 @@ h3 {
 .builder-lesson-expanded input,
 .builder-lesson-expanded textarea,
 .builder-lesson-expanded select {
+  min-width: 0;
   width: 100%;
   padding: 10px 12px;
   border: 1px solid var(--border);
@@ -2411,6 +2414,7 @@ button.submission-card-item {
 }
 
 .builder-lesson-fields {
+  min-width: 0;
   display: flex;
   gap: 10px;
   flex: 1;
@@ -3105,6 +3109,19 @@ button.submission-card-item {
 }
 
 @media (max-width: 540px) {
+  .header-container { gap: 12px; }
+  .header-actions { gap: 8px; }
+  /* Logout remains available in the mobile navigation drawer. */
+  .header-actions > .button { display: none; }
+
+  .builder-grid { grid-template-columns: minmax(0, 1fr); }
+  .builder-form, .builder-outline { padding: 16px; }
+  .builder-lessons-list { padding-left: 0; }
+  .builder-lesson-expanded { flex-direction: column; }
+  .builder-lesson-fields { width: 100%; }
+  .builder-inline-fields { flex-wrap: wrap; }
+  .builder-inline-fields > * { flex: 1; min-width: 0; }
+
   .header-actions .link-button {
     display: none;
   }
@@ -3183,4 +3200,17 @@ button.submission-card-item {
 @keyframes fadeIn {
   from { opacity: 0; }
   to { opacity: 1; }
+}
+.builder-grid:where(fieldset) {
+  border: 0;
+  padding: 0;
+  margin-inline: 0;
+  min-width: 0;
+}
+
+.builder-conflict-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 20px;
 }

@@ -183,7 +183,7 @@ select is((select count(*) from public.ai_job_payloads),1::bigint,'teacher can r
 select is((select count(*) from public.chat_messages),0::bigint,'course teacher cannot inspect student conversations');
 select is((select count(*) from public.xp_ledger),0::bigint,'course teacher cannot inspect personal reward histories');
 select pg_temp.as_user(4);
-select is((select count(*) from public.ai_config_versions),1::bigint,'administrator reads secret-free configuration');
+select is((select count(*) from public.ai_config_versions),3::bigint,'administrator reads secret-free configuration including bootstrap and stage-3 snapshots');
 select is((select count(*) from public.ai_attempts),1::bigint,'administrator can review model usage');
 select is((select count(*) from public.ai_job_payloads),1::bigint,'administrator still cannot read chat job payloads');
 select is((select count(*) from public.ai_job_steps),1::bigint,'administrator still cannot read chat checkpoints');

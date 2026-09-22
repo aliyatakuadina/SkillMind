@@ -43,6 +43,18 @@ async function authenticateAsRole(page: Page, role: 'student' | 'teacher' | 'adm
   await page.route('**/rest/v1/profiles*', async (route) => {
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ role }) })
   })
+  await page.route('**/rest/v1/ai_runtime_settings*', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        video_enabled: false,
+        author_tools_enabled: false,
+        chat_enabled: false,
+        gamification_enabled: false,
+      }),
+    })
+  })
 }
 
 async function authenticateAsTeacher(page: Page) {
@@ -398,4 +410,102 @@ test('failed upload keeps the created course ID and revision for a safe retry', 
   expect(requests[3].p_expected_revision).toBe(0)
   expect(requests[3].p_modules[0].id).not.toBe(requests[0].p_modules[0].id)
   expect(requests[3].p_modules[0].lessons[0].id).not.toBe(requests[0].p_modules[0].lessons[0].id)
+})
+
+test('AI media uploader stays hidden while the video flag is off', async ({ page }) => {
+  await authenticateAsTeacher(page)
+  await page.goto('/teacher/courses/create')
+  await expect(page.getByText('Видео для AI (до 2 ГБ)')).toHaveCount(0)
+  await expect(page.getByLabel('Публичная ссылка YouTube')).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Опубликовать пакет' })).toHaveCount(0)
+})
+
+test('AI media uploader appears for a saved video lesson when enabled', async ({ page }) => {
+  await authenticateAsTeacher(page)
+  await page.route('**/rest/v1/ai_runtime_settings*', async (route) => {
+    await route.fulfill({ json: { video_enabled: true } })
+  })
+  await page.route('**/rest/v1/courses*', (route) => route.fulfill({
+    json: {
+      id: revisionCourseId,
+      content_revision: 4,
+      slug: 'revision-course',
+      title: 'Версии курса',
+      description: '',
+      category: 'Разработка',
+      estimated_duration: '1 час',
+      modules: [{
+        id: '30000000-0000-4000-8000-000000000011',
+        title: 'Модуль',
+        order_index: 0,
+        lessons: [{
+          id: '40000000-0000-4000-8000-000000000011',
+          content_revision: 1,
+          title: 'Видео',
+          description: '',
+          order_index: 0,
+          is_required: true,
+          lesson_items: [{
+            id: '50000000-0000-4000-8000-000000000011',
+            type: 'video',
+            payload: { url: '' },
+            order_index: 0,
+          }],
+        }],
+      }],
+    },
+  }))
+  await page.goto(`/teacher/courses/${revisionCourseId}/edit`)
+  await expect(page.getByText('Видео для AI (до 2 ГБ)')).toBeVisible()
+  await expect(page.getByLabel('Публичная ссылка YouTube')).toBeVisible()
+})
+
+test('author AI assistant stays hidden while the author tools flag is off', async ({ page }) => {
+  await authenticateAsTeacher(page)
+  await page.goto('/teacher/courses/create')
+  await expect(page.getByText('Помощник автора')).toHaveCount(0)
+})
+
+test('author AI assistant appears when enabled', async ({ page }) => {
+  await authenticateAsTeacher(page)
+  await page.route('**/rest/v1/ai_runtime_settings*', async (route) => {
+    await route.fulfill({ json: { video_enabled: false, author_tools_enabled: true } })
+  })
+  await page.goto('/teacher/courses/create')
+  await expect(page.getByText('Помощник автора')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Предложить структуру' })).toBeVisible()
+})
+
+test('admin can open the AI settings tab', async ({ page }) => {
+  await authenticateAsRole(page, 'admin')
+  await page.route('**/rest/v1/rpc/admin_list_users', (route) => route.fulfill({ json: [] }))
+  await page.route('**/rest/v1/courses*', (route) => route.fulfill({ json: [] }))
+  const overview = {
+    file: { sha256: '8274cf6df09da0b67b11ca5c930ac34f0689de1b4a1d92d2a31244b8dda6a455', path: 'config/ai.yaml' },
+    runtime: {
+      video_enabled: false,
+      author_tools_enabled: false,
+      chat_enabled: false,
+      gamification_enabled: false,
+      file_matches_active: true,
+    },
+    providers: { gemini: { configured: true }, openai: { configured: true }, litellm: { configured: true, reachable: false } },
+    connections: [{
+      slug: 'gemini-main',
+      provider: 'gemini',
+      base_url: 'https://generativelanguage.googleapis.com',
+      key_aliases: [{ alias: 'GEMINI_API_KEY_1', present: true }],
+      models: ['gemini-3.5-flash'],
+    }],
+    profiles: { lecture: [{ provider: 'gemini', key_alias: 'GEMINI_API_KEY_1', model_id: 'gemini-3.5-flash' }] },
+    catalog: [],
+    jobs: [],
+    attempts: [],
+  }
+  await page.route('**/v1/admin/ai', (route) => route.fulfill({ json: overview }))
+  await page.route('**/skillmind-api/v1/admin/ai', (route) => route.fulfill({ json: overview }))
+  await page.goto('/admin/users')
+  await page.getByRole('tab', { name: 'AI' }).click()
+  await expect(page.getByRole('heading', { name: 'Управление AI' })).toBeVisible()
+  await expect(page.getByText(/Пользовательские переключатели выключены|Адрес SkillMind API не задан/)).toBeVisible()
 })

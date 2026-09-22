@@ -1,0 +1,95 @@
+connections:
+  - slug: gemini-main
+    provider: gemini
+    base_url: https://generativelanguage.googleapis.com
+    key_aliases:
+      - GEMINI_API_KEY_1
+    quota_group: gemini-project
+    models:
+      - gemini-3.5-flash
+      - gemini-3.5-flash-lite
+      - gemini-2.5-flash
+  - slug: litellm-local
+    provider: litellm
+    base_url: http://100.109.23.90:4000
+    key_aliases:
+      - LITELLM_API_KEY_1
+    models:
+      - qwen-chat
+  - slug: litellm-asr
+    provider: litellm
+    base_url: http://100.109.23.90:4000
+    key_aliases:
+      - LITELLM_API_KEY_1
+    models:
+      - whisper-1
+  - slug: litellm-embed
+    provider: litellm
+    base_url: http://100.109.23.90:4000
+    key_aliases:
+      - LITELLM_API_KEY_1
+    models:
+      - qwen-embed
+  - slug: openai-main
+    provider: openai
+    base_url: https://api.openai.com/v1
+    key_aliases:
+      - OPENAI_API_KEY_1
+    models:
+      - gpt-4.1-mini
+      - gpt-4o-mini
+  - slug: gemini-asr
+    provider: gemini
+    base_url: https://generativelanguage.googleapis.com
+    key_aliases:
+      - GEMINI_API_KEY_1
+    quota_group: gemini-project
+    models:
+      - gemini-3.5-transcribe
+  - slug: openai-asr
+    provider: openai
+    base_url: https://api.openai.com/v1
+    key_aliases:
+      - OPENAI_API_KEY_1
+    models:
+      - whisper-1
+  - slug: gemini-embed
+    provider: gemini
+    base_url: https://generativelanguage.googleapis.com
+    key_aliases:
+      - GEMINI_API_KEY_1
+    quota_group: gemini-project
+    models:
+      - gemini-embedding-001
+profiles:
+  video:
+    order:
+      - gemini-main
+  transcription:
+    order:
+      - litellm-asr
+      - gemini-asr
+      - openai-asr
+  lecture:
+    order:
+      - litellm-local
+      - gemini-main
+      - openai-main
+  translation:
+    order:
+      - litellm-local
+      - gemini-main
+      - openai-main
+  quiz:
+    order:
+      - litellm-local
+      - gemini-main
+      - openai-main
+  chat:
+    order:
+      - litellm-local
+      - gemini-main
+      - openai-main
+  embedding:
+    order:
+      - litellm-embed

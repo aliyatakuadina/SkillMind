@@ -1992,6 +1992,78 @@ export type Database = {
         }
         Returns: undefined
       }
+      ai_checkpoint_step: {
+        Args: {
+          p_job_id: string
+          p_lease_token: string
+          p_generation: number
+          p_step_key: string
+          p_status: string
+          p_checkpoint: Json
+          p_progress?: number | null
+          p_language?: Database["public"]["Enums"]["content_language"] | null
+          p_chunk_index?: number | null
+          p_error_code?: string | null
+        }
+        Returns: Database["public"]["Tables"]["ai_job_steps"]["Row"]
+      }
+      ai_claim_job: {
+        Args: {
+          p_worker_id: string
+          p_task_types: Database["public"]["Enums"]["ai_task_type"][]
+          p_lease_seconds?: number
+        }
+        Returns: Json
+      }
+      ai_defer_job: {
+        Args: {
+          p_job_id: string
+          p_lease_token: string
+          p_generation: number
+          p_delay_seconds: number
+          p_error_code: string
+        }
+        Returns: Database["public"]["Tables"]["ai_jobs"]["Row"]
+      }
+      ai_enqueue_job: {
+        Args: {
+          p_requested_by: string
+          p_idempotency_key: string
+          p_task_type: Database["public"]["Enums"]["ai_task_type"]
+          p_input: Json
+          p_course_id?: string | null
+          p_course_revision?: number | null
+          p_lesson_id?: string | null
+          p_lesson_revision?: number | null
+          p_source_id?: string | null
+          p_source_revision?: number | null
+        }
+        Returns: Database["public"]["Tables"]["ai_jobs"]["Row"]
+      }
+      ai_finish_job: {
+        Args: {
+          p_job_id: string
+          p_lease_token: string
+          p_generation: number
+          p_status: Database["public"]["Enums"]["ai_job_status"]
+          p_output?: Json | null
+          p_error_code?: string | null
+        }
+        Returns: Database["public"]["Tables"]["ai_jobs"]["Row"]
+      }
+      ai_heartbeat_job: {
+        Args: {
+          p_job_id: string
+          p_lease_token: string
+          p_generation: number
+          p_lease_seconds?: number
+        }
+        Returns: string
+      }
+      cancel_ai_job: {
+        Args: { p_job_id: string }
+        Returns: Database["public"]["Tables"]["ai_jobs"]["Row"]
+      }
       can_access_course: { Args: { p_course_id: string }; Returns: boolean }
       can_access_lesson: { Args: { p_lesson_id: string }; Returns: boolean }
       can_manage_lesson: { Args: { p_lesson_id: string }; Returns: boolean }

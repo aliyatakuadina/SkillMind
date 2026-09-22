@@ -1,5 +1,6 @@
-import { createClient } from '@supabase/supabase-js'
+import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import type { Database } from '../types/database'
+import { createLocalClient } from './localClient'
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL ?? ''
 const supabaseAnonKey =
@@ -7,16 +8,20 @@ const supabaseAnonKey =
   import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ??
   ''
 
-export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey)
+export const isLocalMode = (import.meta.env.VITE_SKILLMIND_MODE ?? '').toLowerCase() === 'local'
+const cloudConfigured = Boolean(supabaseUrl && supabaseAnonKey)
 
-// The app can still render its static screens before a Supabase project is connected.
-// Features that need data must check this value and show a clear setup state when it is null.
-export const supabase = isSupabaseConfigured
-  ? createClient<Database>(supabaseUrl, supabaseAnonKey, {
-      auth: {
-        persistSession: true,
-        autoRefreshToken: true,
-        detectSessionInUrl: true,
-      },
-    })
-  : null
+export const isSupabaseConfigured = isLocalMode || cloudConfigured
+
+// Cloud uses Supabase. Local mode uses the SkillMind API and Postgres behind SKILLMIND_MODE=local.
+export const supabase: SupabaseClient<Database> | null = isLocalMode
+  ? createLocalClient() as unknown as SupabaseClient<Database>
+  : cloudConfigured
+    ? createClient<Database>(supabaseUrl, supabaseAnonKey, {
+        auth: {
+          persistSession: true,
+          autoRefreshToken: true,
+          detectSessionInUrl: true,
+        },
+      })
+    : null

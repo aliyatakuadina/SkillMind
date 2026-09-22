@@ -9,9 +9,11 @@ import {
   type CourseDraftLesson,
   type CourseDraftModule,
   type QuizQuestionDraft,
-  type QuizQuestionType,
 } from '../lib/courseRepository'
-import type { LessonType } from '../types'
+import { AuthorAiPanel } from '../components/AuthorAiPanel'
+import { CategoryField } from '../components/CategoryField'
+import { LessonDraftCard } from '../components/LessonDraftCard'
+import { getAiRuntimeFlags } from '../lib/skillmindApi'
 import { t } from '../i18n'
 
 const newLesson = (number: number): CourseDraftLesson => ({
@@ -32,18 +34,8 @@ const newLesson = (number: number): CourseDraftLesson => ({
 })
 
 const newDraft = (): CourseDraft => ({
-  title: '', description: '', category: t('catalog.design'), duration: t('builder.defaultCourseDuration'),
+  title: '', description: '', category: 'Разработка программного обеспечения', duration: t('builder.defaultCourseDuration'),
   modules: [{ id: crypto.randomUUID(), title: t('builder.defaultModule'), lessons: [newLesson(1)] }],
-})
-
-const newQuestion = (): QuizQuestionDraft => ({
-  id: crypto.randomUUID(),
-  type: 'single_choice',
-  prompt: '',
-  options: ['', ''],
-  correctOptions: [0],
-  pairs: [{ left: '', right: '' }, { left: '', right: '' }],
-  points: 1,
 })
 
 function isInvalidQuestion(question: QuizQuestionDraft) {
@@ -69,6 +61,8 @@ function CourseBuilderEditor({ courseId }: { courseId?: string }) {
   const [saving, setSaving] = useState(false)
   const [notification, setNotification] = useState<{ kind: 'success' | 'error'; text: string } | null>(null)
   const [revisionConflict, setRevisionConflict] = useState(false)
+  const [videoEnabled, setVideoEnabled] = useState(false)
+  const [authorToolsEnabled, setAuthorToolsEnabled] = useState(false)
 
   useEffect(() => {
     if (!courseId) return
@@ -79,6 +73,24 @@ function CourseBuilderEditor({ courseId }: { courseId?: string }) {
       .finally(() => { if (active) setLoading(false) })
     return () => { active = false }
   }, [courseId])
+
+  useEffect(() => {
+    let active = true
+    void getAiRuntimeFlags()
+      .then((flags) => {
+        if (active) {
+          setVideoEnabled(flags.videoEnabled)
+          setAuthorToolsEnabled(flags.authorToolsEnabled)
+        }
+      })
+      .catch(() => {
+        if (active) {
+          setVideoEnabled(false)
+          setAuthorToolsEnabled(false)
+        }
+      })
+    return () => { active = false }
+  }, [])
 
   const updateDraft = (updates: Partial<CourseDraft>) => setDraft((current) => ({ ...current, ...updates }))
 
@@ -219,10 +231,11 @@ function CourseBuilderEditor({ courseId }: { courseId?: string }) {
         <form className="builder-form" onSubmit={(event) => event.preventDefault()}>
           <h3>{t('builder.parameters')}</h3>
           <label>{t('builder.courseTitle')}<input value={draft.title} maxLength={160} onChange={(event) => updateDraft({ title: event.target.value })} required /></label>
-          <label>{t('builder.category')}<select value={draft.category} onChange={(event) => updateDraft({ category: event.target.value })}><option>{t('catalog.design')}</option><option>{t('catalog.development')}</option><option>{t('catalog.skills')}</option></select></label>
+          <CategoryField value={draft.category} onChange={(category) => updateDraft({ category })} />
           <label>{t('builder.duration')}<input value={draft.duration} onChange={(event) => updateDraft({ duration: event.target.value })} placeholder={t('builder.durationPlaceholder')} /></label>
           <label>{t('builder.description')}<textarea value={draft.description} maxLength={2000} rows={5} onChange={(event) => updateDraft({ description: event.target.value })} /></label>
           <div className="builder-tip-box"><b>{t('builder.tipTitle')}</b><p>{t('builder.tip')}</p></div>
+          <AuthorAiPanel enabled={authorToolsEnabled} draft={draft} onDraft={setDraft} />
         </form>
 
         <aside className="builder-outline">
@@ -241,43 +254,23 @@ function CourseBuilderEditor({ courseId }: { courseId?: string }) {
                 </div>
                 <div className="builder-lessons-list">
                   {module.lessons.map((lesson, lessonIndex) => (
-                    <div key={lesson.id} className="builder-lesson-item builder-lesson-expanded">
-                      <div className="builder-lesson-fields">
-                        <input className="builder-lesson-name-input" value={lesson.title} onChange={(event) => updateLesson(module.id, lesson.id, { title: event.target.value })} />
-                        <select className="builder-type-select" value={lesson.type} onChange={(event) => updateLesson(module.id, lesson.id, { type: event.target.value as LessonType })}>
-                          <option value="video">{t('builder.typeVideo')}</option><option value="text">{t('builder.typeText')}</option><option value="pdf">{t('builder.typePdf')}</option><option value="document">{t('builder.typeDocx')}</option><option value="quiz">{t('builder.typeQuiz')}</option><option value="homework">{t('builder.typeHomework')}</option>
-                        </select>
-                        <input value={lesson.duration} onChange={(event) => updateLesson(module.id, lesson.id, { duration: event.target.value })} placeholder={t('builder.defaultDuration')} aria-label={t('builder.lessonDuration')} />
-                        <textarea value={lesson.description} onChange={(event) => updateLesson(module.id, lesson.id, { description: event.target.value })} placeholder={t('builder.lessonDescription')} rows={2} />
-                        {lesson.type === 'text' && <textarea value={lesson.content} onChange={(event) => updateLesson(module.id, lesson.id, { content: event.target.value })} placeholder={t('builder.lessonText')} rows={4} />}
-                        {lesson.type === 'video' && <input value={lesson.resourceUrl} onChange={(event) => updateLesson(module.id, lesson.id, { resourceUrl: event.target.value })} placeholder={t('builder.videoLink')} />}
-                        {(lesson.type === 'video' || lesson.type === 'pdf') && <label className="builder-file-label">{t('builder.materialFile')}<input type="file" accept={lesson.type === 'video' ? 'video/mp4' : 'application/pdf'} onChange={(event) => { const file = event.target.files?.[0]; if (file) setPendingFiles((current) => ({ ...current, [lesson.id]: { ...current[lesson.id], material: file } })) }} /></label>}
-                        {lesson.type === 'document' && <div className="builder-inline-fields"><label className="builder-file-label">{t('builder.previewPdf')}<input type="file" accept="application/pdf" onChange={(event) => { const file = event.target.files?.[0]; if (file) setPendingFiles((current) => ({ ...current, [lesson.id]: { ...current[lesson.id], material: file } })) }} /></label><label className="builder-file-label">{t('builder.sourceDocx')}<input type="file" accept="application/vnd.openxmlformats-officedocument.wordprocessingml.document" onChange={(event) => { const file = event.target.files?.[0]; if (file) setPendingFiles((current) => ({ ...current, [lesson.id]: { ...current[lesson.id], source: file } })) }} /></label></div>}
-                        {lesson.type === 'quiz' && <div className="builder-quiz-editor">
-                          <div className="builder-inline-fields"><label>{t('builder.passingScore')}<input type="number" min="0" max="100" value={lesson.passingScore} onChange={(event) => updateLesson(module.id, lesson.id, { passingScore: Number(event.target.value) })} /></label><label>{t('builder.attempts')}<input type="number" min="1" max="20" value={lesson.attemptLimit ?? ''} onChange={(event) => updateLesson(module.id, lesson.id, { attemptLimit: event.target.value ? Number(event.target.value) : null })} /></label></div>
-                          {lesson.questions.map((question, questionIndex) => <div className="builder-question" key={question.id}>
-                            <div className="builder-question-heading"><b>{t('builder.question', { number: questionIndex + 1 })}</b><button type="button" onClick={() => updateLesson(module.id, lesson.id, { questions: lesson.questions.filter((item) => item.id !== question.id) })}>{t('builder.deleteQuestion')}</button></div>
-                            <input value={question.prompt} placeholder={t('builder.questionText')} onChange={(event) => updateLesson(module.id, lesson.id, { questions: lesson.questions.map((item) => item.id === question.id ? { ...item, prompt: event.target.value } : item) })} />
-                            <label>{t('builder.questionType')}<select value={question.type} onChange={(event) => updateLesson(module.id, lesson.id, { questions: lesson.questions.map((item) => item.id === question.id ? { ...item, type: event.target.value as QuizQuestionType, correctOptions: [0] } : item) })}><option value="single_choice">{t('builder.singleChoice')}</option><option value="multiple_choice">{t('builder.multipleChoice')}</option><option value="matching">{t('builder.matching')}</option></select></label>
-                            {question.type === 'matching' ? <>
-                              {question.pairs.map((pair, pairIndex) => <div className="builder-inline-fields" key={`${question.id}-pair-${pairIndex}`}><input value={pair.left} placeholder={t('builder.matchLeft', { number: pairIndex + 1 })} onChange={(event) => updateLesson(module.id, lesson.id, { questions: lesson.questions.map((item) => item.id === question.id ? { ...item, pairs: item.pairs.map((value, index) => index === pairIndex ? { ...value, left: event.target.value } : value) } : item) })} /><input value={pair.right} placeholder={t('builder.matchRight', { number: pairIndex + 1 })} onChange={(event) => updateLesson(module.id, lesson.id, { questions: lesson.questions.map((item) => item.id === question.id ? { ...item, pairs: item.pairs.map((value, index) => index === pairIndex ? { ...value, right: event.target.value } : value) } : item) })} /></div>)}
-                              <button type="button" className="table-action-btn" onClick={() => updateLesson(module.id, lesson.id, { questions: lesson.questions.map((item) => item.id === question.id ? { ...item, pairs: [...item.pairs, { left: '', right: '' }] } : item) })}>{t('builder.addPair')}</button>
-                            </> : <>
-                              {question.options.map((option, optionIndex) => <label className="builder-answer-option" key={`${question.id}-${optionIndex}`}><input type={question.type === 'single_choice' ? 'radio' : 'checkbox'} name={`correct-${question.id}`} checked={question.correctOptions.includes(optionIndex)} onChange={(event) => updateLesson(module.id, lesson.id, { questions: lesson.questions.map((item) => item.id === question.id ? { ...item, correctOptions: question.type === 'single_choice' ? [optionIndex] : event.target.checked ? [...item.correctOptions, optionIndex].sort((a, b) => a - b) : item.correctOptions.filter((index) => index !== optionIndex) } : item) })} /><input value={option} placeholder={t('builder.option', { number: optionIndex + 1 })} onChange={(event) => updateLesson(module.id, lesson.id, { questions: lesson.questions.map((item) => item.id === question.id ? { ...item, options: item.options.map((value, index) => index === optionIndex ? event.target.value : value) } : item) })} /></label>)}
-                              <button type="button" className="table-action-btn" onClick={() => updateLesson(module.id, lesson.id, { questions: lesson.questions.map((item) => item.id === question.id ? { ...item, options: [...item.options, ''] } : item) })}>{t('builder.addOption')}</button>
-                            </>}
-                          </div>)}
-                          <button type="button" className="button button-small button-muted" onClick={() => updateLesson(module.id, lesson.id, { questions: [...lesson.questions, newQuestion()] })}>{t('builder.addQuestion')}</button>
-                        </div>}
-                        {lesson.type === 'homework' && <div className="builder-inline-fields"><label>{t('builder.maxFiles')}<input type="number" min="0" max="10" value={lesson.maxFiles} onChange={(event) => updateLesson(module.id, lesson.id, { maxFiles: Number(event.target.value) })} /></label><label>{t('builder.fileLimit')}<input type="number" min="1" max="50" value={Math.round(lesson.maxFileSizeBytes / 1048576)} onChange={(event) => updateLesson(module.id, lesson.id, { maxFileSizeBytes: Number(event.target.value) * 1048576 })} /></label></div>}
-                        <label className="builder-required"><input type="checkbox" checked={lesson.isRequired} onChange={(event) => updateLesson(module.id, lesson.id, { isRequired: event.target.checked })} /> {t('builder.required')}</label>
-                      </div>
-                      <div className="builder-lesson-actions">
-                        <button type="button" disabled={lessonIndex === 0} onClick={() => moveLesson(module.id, lessonIndex, -1)} aria-label={t('builder.moveLessonUp')}>↑</button>
-                        <button type="button" disabled={lessonIndex === module.lessons.length - 1} onClick={() => moveLesson(module.id, lessonIndex, 1)} aria-label={t('builder.moveLessonDown')}>↓</button>
-                        <button type="button" onClick={() => updateModule(module.id, (current) => ({ ...current, lessons: current.lessons.filter((item) => item.id !== lesson.id) }))} aria-label={t('builder.deleteLesson')}>✕</button>
-                      </div>
-                    </div>
+                    <LessonDraftCard
+                      key={lesson.id}
+                      lesson={lesson}
+                      number={lessonIndex + 1}
+                      canMoveUp={lessonIndex > 0}
+                      canMoveDown={lessonIndex < module.lessons.length - 1}
+                      materialName={pendingFiles[lesson.id]?.material?.name}
+                      sourceName={pendingFiles[lesson.id]?.source?.name}
+                      courseId={draft.id}
+                      videoEnabled={videoEnabled}
+                      onChange={(updates) => updateLesson(module.id, lesson.id, updates)}
+                      onMove={(direction) => moveLesson(module.id, lessonIndex, direction)}
+                      onRemove={() => updateModule(module.id, (current) => ({ ...current, lessons: current.lessons.filter((item) => item.id !== lesson.id) }))}
+                      onMaterial={(file) => setPendingFiles((current) => ({ ...current, [lesson.id]: { ...current[lesson.id], material: file } }))}
+                      onSource={(file) => setPendingFiles((current) => ({ ...current, [lesson.id]: { ...current[lesson.id], source: file } }))}
+                      onLessonReplace={(updated) => updateLesson(module.id, lesson.id, updated)}
+                    />
                   ))}
                   <button type="button" className="builder-add-lesson-btn" onClick={() => updateModule(module.id, (current) => ({ ...current, lessons: [...current.lessons, newLesson(current.lessons.length + 1)] }))}>{t('builder.addLesson')}</button>
                 </div>

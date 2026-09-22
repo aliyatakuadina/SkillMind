@@ -25,7 +25,7 @@ export type Course = {
   title: string
   description: string
   longDescription?: string
-  category: 'Дизайн' | 'Разработка' | 'Навыки'
+  category: string
   author: string
   authorRole?: string
   duration: string

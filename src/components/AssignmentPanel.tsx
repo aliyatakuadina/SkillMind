@@ -2,7 +2,15 @@ import { useEffect, useState } from 'react'
 import { getAssignmentForLesson, submitAssignment, type AssignmentData } from '../lib/learningRepository'
 import { t } from '../i18n'
 
-export function AssignmentPanel({ lessonId, onSubmitted }: { lessonId: string; onSubmitted: () => Promise<void> }) {
+export function AssignmentPanel({
+  lessonId,
+  onSubmitted,
+  onAccepted,
+}: {
+  lessonId: string
+  onSubmitted: () => Promise<void>
+  onAccepted?: (grade: number) => Promise<void>
+}) {
   const [assignment, setAssignment] = useState<AssignmentData | null>(null)
   const [textAnswer, setTextAnswer] = useState('')
   const [files, setFiles] = useState<File[]>([])
@@ -13,10 +21,18 @@ export function AssignmentPanel({ lessonId, onSubmitted }: { lessonId: string; o
   useEffect(() => {
     let active = true
     void getAssignmentForLesson(lessonId)
-      .then((data) => { if (active) setAssignment(data) })
+      .then(async (data) => {
+        if (!active) return
+        setAssignment(data)
+        if (data.status === 'graded' && (data.grade ?? 0) >= 70) {
+          await onAccepted?.(data.grade ?? 0)
+        }
+      })
       .catch((caught: Error) => { if (active) setError(caught.message) })
       .finally(() => { if (active) setLoading(false) })
     return () => { active = false }
+    // Intentionally once per lesson; onAccepted is idempotent on the server.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lessonId])
 
   const handleSubmit = async (event: React.FormEvent) => {

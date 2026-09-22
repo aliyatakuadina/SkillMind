@@ -4,8 +4,6 @@ import { listPublishedCourses } from '../lib/learningRepository'
 import type { Course } from '../types'
 import { t } from '../i18n'
 
-const categories = [t('catalog.all'), t('catalog.design'), t('catalog.development'), t('catalog.skills')] as const
-
 export function CatalogPage() {
   const [courses, setCourses] = useState<Course[]>([])
   const [selectedCategory, setSelectedCategory] = useState<string>(t('catalog.all'))
@@ -21,6 +19,8 @@ export function CatalogPage() {
       .finally(() => { if (active) setLoading(false) })
     return () => { active = false }
   }, [])
+
+  const categories = useMemo(() => [t('catalog.all'), ...new Set(courses.map((course) => course.category).filter(Boolean))], [courses])
 
   const filteredCourses = useMemo(() => courses.filter((course) => {
     const matchesCategory = selectedCategory === t('catalog.all') || course.category === selectedCategory

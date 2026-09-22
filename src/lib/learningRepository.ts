@@ -147,6 +147,44 @@ export async function getCourseAssetUrl(pathOrUrl: string): Promise<string> {
   return data.signedUrl
 }
 
+export interface PublishedAiLanguage {
+  title: string
+  summary: string
+  lecture?: { sections?: Array<{ heading?: string; body?: string }> }
+  cues: Array<{ start: number; end: number; text: string }>
+  vtt_text: string
+}
+
+export interface PublishedAiBundle {
+  id: string
+  languages: Partial<Record<'ru' | 'kk' | 'en', PublishedAiLanguage>>
+}
+
+export async function getPublishedAiBundle(lessonId: string): Promise<PublishedAiBundle | null> {
+  if (!supabase) return null
+  const { data, error } = await supabase
+    .from('lesson_ai_bundles')
+    .select('id,status,stale_at,lesson_localizations(language,title,summary,lecture),subtitle_tracks(language,cues,vtt_text)')
+    .eq('lesson_id', lessonId)
+    .eq('status', 'published')
+    .maybeSingle()
+  if (error || !data || data.stale_at) return null
+  const languages: PublishedAiBundle['languages'] = {}
+  for (const loc of data.lesson_localizations ?? []) {
+    const track = (data.subtitle_tracks ?? []).find((item) => item.language === loc.language)
+    const language = loc.language as 'ru' | 'kk' | 'en'
+    languages[language] = {
+      title: loc.title,
+      summary: loc.summary,
+      lecture: (loc.lecture ?? {}) as PublishedAiLanguage['lecture'],
+      cues: Array.isArray(track?.cues) ? track.cues as PublishedAiLanguage['cues'] : [],
+      vtt_text: track?.vtt_text ?? '',
+    }
+  }
+  if (!languages.ru || !languages.kk || !languages.en) return null
+  return { id: data.id, languages }
+}
+
 export async function logLearningEvent(
   courseId: string,
   lessonId: string,
@@ -416,8 +454,9 @@ export async function verifyCertificate(token: string): Promise<CertificateDetai
   } : null
 }
 
-function normalizeCategory(value: string | null): Course['category'] {
-  return value === 'Разработка' || value === 'Навыки' ? value : 'Дизайн'
+function normalizeCategory(value: string | null): string {
+  const name = (value ?? '').trim()
+  return name || t('common.uncategorized')
 }
 
 function firstRelated<T>(value: T | T[] | null): T | null {
